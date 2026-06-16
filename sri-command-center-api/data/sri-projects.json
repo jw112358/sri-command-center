@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "description": "SRI OS Command Center project registry. Update this file from session summaries to refresh the visualization. Schema v1.",
+    "last_updated": "2026-06-15",
+    "update_instructions": "Edit completionPct (0-100), lane (PLANNING/IN_PROGRESS/BLOCKED/COMPLETE), and notes after each working session. The command center visualization reads this file on every /api/graph and /api/projects request."
+  },
+  "projects": [
+    {
+      "id": "legal-agent-os",
+      "name": "Legal Agent OS",
+      "os": "legal",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 60,
+      "githubRepo": "sri-intel/legal-agent-os",
+      "notes": "4-week launch plan (SOP-2026-0003). Weeks 1-2 complete: connectors probed, registries built, first matter cycled. Week 3 (6/7-6/13): QA skill, docket-watcher activation, Context Manager. Week 4 (6/14-6/20): onboard second client firm, soft launch. Pipeline architecture live. OpenClaw-Paperclip bridge active.",
+      "updatedAt": "2026-06-15"
+    },
+    {
+      "id": "builder-os",
+      "name": "Builder OS",
+      "os": "builder",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 45,
+      "githubRepo": "sri-intel/builder-os",
+      "notes": "Plugin install brief prepared (cc-session-008, 2026-06-05). Drive scaffold complete: AGENTS.md, orchestrator, 4 practice profiles (mobile-builder, web-builder, extension-builder, devops). Plugin not yet installed — no builder-os:* skills invokable in Cowork. MVP skills needed: new-project, web-build, deploy.",
+      "updatedAt": "2026-06-06"
+    },
+    {
+      "id": "marketing-os",
+      "name": "Marketing OS",
+      "os": "marketing",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 55,
+      "githubRepo": "sri-intel/marketing-os",
+      "notes": "Plugin installed, skills live: content-calendar, schedule-post, repurpose, audience-voice, blotato-scheduler, content-repurposer, performance-analyzer. NOT cold-started (no brand profile loaded). Blotato MCP not connected (requires paid plan). First campaign: GTD v2 waitlist launch pending compliance gate.",
+      "updatedAt": "2026-06-06"
+    },
+    {
+      "id": "sri-command-center",
+      "name": "SRI OS Command Center",
+      "os": "builder",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 72,
+      "githubRepo": null,
+      "notes": "Full-stack React + FastAPI dashboard. 3D graph visualization live with completionPct sphere scaling. All action buttons wired (PAUSE, STOP, RESTART, LAUNCH, INTERACT, MARK COMPLETE, VIEW LOG). GitHub projects visible. Drive ADC scope issue pending. Deployment to custom URL next.",
+      "updatedAt": "2026-06-15"
+    },
+    {
+      "id": "jk-author-os",
+      "name": "JK Author OS",
+      "os": "jkauthor",
+      "owner": "Jeffery Williams",
+      "priority": "MED",
+      "lane": "IN_PROGRESS",
+      "completionPct": 65,
+      "githubRepo": null,
+      "notes": "Plugin active in Cowork. Skills live: outline-generator, write-chapter, style-humanizer, book-researcher, manuscript-formatter, visual-content, cover-art-generator. Novel continuity checks running.",
+      "updatedAt": "2026-06-10"
+    },
+    {
+      "id": "fja-legal",
+      "name": "FJA Legal Operations",
+      "os": "legal",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 40,
+      "githubRepo": null,
+      "notes": "Nonprofit legal ops. Active SC appellate matter: Holmwood & Price v. Molstad (App. Case No. 2025-001596). Oppositions to dismissal filed May 26, 2026. Researching and drafting via Legal OS pipeline.",
+      "updatedAt": "2026-06-10"
+    },
+    {
+      "id": "gtd-platform",
+      "name": "GTD v2 Sports Analytics",
+      "os": "builder",
+      "owner": "Jeffery Williams",
+      "priority": "HIGH",
+      "lane": "IN_PROGRESS",
+      "completionPct": 50,
+      "githubRepo": null,
+      "notes": "Soft launch decided (Stripe test mode, waitlist/free-tier only). Marketing campaign pending compliance gate (21+ disclaimer). Auth stabilized, DB optimized. TypeScript compilation fixes in progress.",
+      "updatedAt": "2026-06-06"
+    },
+    {
+      "id": "openclaw-bridge",
+      "name": "OpenClaw-SRI Bridge",
+      "os": "legal",
+      "owner": "Jeffery Williams",
+      "priority": "MED",
+      "lane": "IN_PROGRESS",
+      "completionPct": 70,
+      "githubRepo": null,
+      "notes": "Cross-fleet protocol active. OpenClaw fleet (Jim Lahey, Julien, Bubbles, Rickey, Lucy) + SRI-OPS fleet (CEO, CLO, ResearchDirector, COO). Both fleets read from shared Google Drive. Bridge doc live.",
+      "updatedAt": "2026-06-11"
+    }
+  ]
+}

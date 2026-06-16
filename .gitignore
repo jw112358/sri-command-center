@@ -1,0 +1,19 @@
+# Credentials — NEVER commit these (PLATFORM.md §3)
+.env
+*.env
+!.env.example
+*service_account*.json
+*credentials*.json
+
+# Frontend
+sri-command-center/node_modules/
+sri-command-center/dist/
+
+# Backend
+sri-command-center-api/__pycache__/
+sri-command-center-api/**/__pycache__/
+sri-command-center-api/**/*.pyc
+sri-command-center-api/.venv/
+
+# OS
+.DS_Store

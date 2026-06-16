@@ -1,0 +1,37 @@
+services:
+  # ── Backend API (FastAPI + uvicorn) ─────────────────────────────────────────
+  - type: web
+    name: sri-command-center-api
+    runtime: python
+    rootDir: sri-command-center-api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DRIVE_ROOT_FOLDER_ID
+        value: 18LyrWJbV2L01N_6T52BmPcsRr1nJjBcV
+      - key: GITHUB_TOKEN
+        sync: false   # set in Render dashboard — never commit
+      - key: CACHE_TTL
+        value: "300"
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /api/health
+    plan: free
+
+  # ── Frontend (React + Vite static site) ─────────────────────────────────────
+  - type: web
+    name: sri-command-center
+    runtime: static
+    rootDir: sri-command-center
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        # Set this to the deployed backend URL after first deploy, e.g.:
+        # https://sri-command-center-api.onrender.com
+        sync: false
+    routes:
+      # SPA fallback — all routes serve index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
