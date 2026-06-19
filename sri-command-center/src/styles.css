@@ -467,7 +467,33 @@ html, body {
 .interact input::placeholder { color: var(--muted-2); }
 
 /* ─── Notebook ───────────────────────────────────────────────────────────── */
-.nb { display: flex; gap: 14px; height: 100%; padding: 14px; }
+.nb { display: flex; flex-direction: column; gap: 0; height: 100%; padding: 14px; }
+
+/* Tab bar */
+.nb-tabs {
+  display: flex; gap: 4px; padding-bottom: 12px; flex: 0 0 auto;
+}
+.nb-tab {
+  font-family: var(--font-display); font-size: 11px; letter-spacing: 1.5px;
+  color: var(--muted); background: transparent; border: 1px solid var(--border-soft);
+  border-radius: 3px; padding: 6px 16px; cursor: pointer; transition: all .15s;
+}
+.nb-tab:hover { color: var(--gold); border-color: var(--border); }
+.nb-tab.active { color: var(--gold); border-color: var(--gold); background: rgba(255,215,0,.06); }
+
+/* Notes tab layout */
+.nb > section { flex: 1; min-height: 0; }
+.nb > .panel.nb-sidebar-panel { flex: 0 0 220px; }
+.nb-tabs ~ .panel.nb-sidebar-panel,
+.nb-tabs ~ .panel.nb-editor {
+  /* when notes tab active, restore row layout below tabs */
+}
+
+/* Re-wire row layout for notes content */
+.nb { flex-wrap: nowrap; }
+.nb-notes-row {
+  display: flex; gap: 14px; flex: 1; min-height: 0;
+}
 .nb-sidebar-panel { flex: 0 0 220px; }
 .nb-sidebar { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
 .nb-new { width: 100%; justify-content: center; margin-bottom: 6px; }
@@ -542,3 +568,67 @@ html, body {
   border: 1px solid var(--gold-dim); display: grid; place-items: center;
   font-size: 8px; color: var(--gold); letter-spacing: .5px; }
 .mc-card .cupd { font-size: 9.5px; color: var(--muted-2); }
+
+/* ─── Tasks Panel ────────────────────────────────────────────────────────── */
+.nb-tasks-wrap { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.tasks-panel { display: flex; flex-direction: column; height: 100%; gap: 12px; overflow: hidden; }
+
+.tasks-head {
+  display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border-soft);
+}
+.tasks-title {
+  font-family: var(--font-display); font-size: 13px; letter-spacing: 2px; color: var(--gold);
+  margin-right: 4px;
+}
+.tasks-filters { display: flex; gap: 4px; margin-left: auto; }
+
+.tasks-add {
+  display: flex; gap: 8px; flex: 0 0 auto;
+}
+.tasks-input {
+  flex: 1; font-family: var(--font-ui); font-size: 12px; color: var(--white);
+  background: rgba(255,215,0,.04); border: 1px solid var(--border-soft);
+  border-radius: 3px; padding: 8px 12px; outline: none; caret-color: var(--gold);
+  transition: border-color .15s;
+}
+.tasks-input:focus { border-color: var(--gold); }
+.tasks-input::placeholder { color: var(--muted-2); }
+
+.tasks-list {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+}
+
+.task-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 4px;
+  background: rgba(255,215,0,.02); transition: border-color .15s, background .15s;
+}
+.task-row:hover { border-color: var(--border); background: rgba(255,215,0,.035); }
+.task-row.done { opacity: .55; }
+
+.task-check {
+  flex: 0 0 22px; height: 22px; font-size: 13px;
+  color: var(--muted-2); background: transparent; border: 1px solid var(--border-soft);
+  border-radius: 3px; cursor: pointer; display: grid; place-items: center;
+  transition: color .15s, border-color .15s;
+}
+.task-check:hover { color: var(--gold); border-color: var(--gold); }
+.task-check.checked { color: var(--gold); border-color: var(--gold-dim); background: rgba(255,215,0,.08); }
+
+.task-body { flex: 1; min-width: 0; }
+.task-text {
+  display: block; font-size: 12px; color: var(--white); line-height: 1.4;
+  margin-bottom: 4px; word-break: break-word;
+}
+.task-row.done .task-text { text-decoration: line-through; color: var(--muted-2); }
+
+.task-meta { display: flex; flex-wrap: wrap; gap: 0; }
+.task-ts { font-size: 9.5px; color: var(--muted-2); letter-spacing: .5px; }
+.task-ts.done-ts { color: var(--gold-dim); }
+
+.task-del {
+  flex: 0 0 auto; opacity: 0; transition: opacity .15s;
+  font-size: 10px; padding: 2px 7px;
+}
+.task-row:hover .task-del { opacity: 1; }

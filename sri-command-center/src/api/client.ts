@@ -33,7 +33,7 @@ let _apiReachable: boolean | null = null;
 async function isApiReachable(): Promise<boolean> {
   if (_apiReachable !== null) return _apiReachable;
   try {
-    await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(2000) });
+    await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(8000) });
     _apiReachable = true;
   } catch {
     _apiReachable = false;

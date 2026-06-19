@@ -17,7 +17,11 @@ export function MissionControl() {
     let mounted = true;
     getProjects().then(ps => {
       if (!mounted || ps.length === 0) return;
-      setProjects(ps.map(p => ({ ...p })));
+      // Normalize updatedAt (ISO) → updated (display string) for cards
+      setProjects(ps.map(p => ({
+        ...p,
+        updated: p.updated ?? (p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'),
+      })));
     }).catch(() => { /* keep mock */ });
     return () => { mounted = false; };
   }, []);

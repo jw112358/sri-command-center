@@ -3,6 +3,15 @@ import type { Note } from '../types';
 import { getNotes, getNote, createNote, patchNote } from '../api/client';
 import { NOTES as MOCK_NOTES } from '../mock/data';
 
+// ─── Task type (local, stored in note body as JSON front-matter) ──────────────
+interface Task {
+  id: string;
+  text: string;
+  done: boolean;
+  createdAt: string;   // ISO
+  completedAt?: string; // ISO
+}
+
 // ─── Markdown renderer (inline, no external dep) ──────────────────────────────
 function renderMarkdown(src: string): React.ReactNode[] {
   const lines = src.split('\n');
@@ -52,7 +61,7 @@ function renderMarkdown(src: string): React.ReactNode[] {
   return out;
 }
 
-// ─── Timestamp helper ─────────────────────────────────────────────────────────
+// ─── Timestamp helpers ────────────────────────────────────────────────────────
 function nowStamp(): string {
   const now = new Date();
   return (
@@ -62,10 +71,140 @@ function nowStamp(): string {
   );
 }
 
+function nowISO(): string {
+  return new Date().toISOString();
+}
+
+function fmtISO(iso: string): string {
+  const d = new Date(iso);
+  return (
+    d.toLocaleString('en-US', { month: 'short', day: 'numeric' }) +
+    ' · ' +
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  );
+}
+
+// ─── Task storage: tasks live in localStorage keyed by session ────────────────
+const TASKS_KEY = 'sri_cc_tasks';
+
+function loadTasks(): Task[] {
+  try { return JSON.parse(localStorage.getItem(TASKS_KEY) ?? '[]'); }
+  catch { return []; }
+}
+
+function saveTasks(tasks: Task[]) {
+  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
+  catch { /* ignore */ }
+}
+
+// ─── TasksPanel ───────────────────────────────────────────────────────────────
+function TasksPanel() {
+  const [tasks, setTasks]   = useState<Task[]>(() => loadTasks());
+  const [input, setInput]   = useState('');
+  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const persist = (next: Task[]) => { setTasks(next); saveTasks(next); };
+
+  const addTask = () => {
+    const text = input.trim();
+    if (!text) return;
+    const t: Task = { id: 'tk' + Date.now(), text, done: false, createdAt: nowISO() };
+    persist([t, ...tasks]);
+    setInput('');
+    inputRef.current?.focus();
+  };
+
+  const toggle = (id: string) => {
+    persist(tasks.map(t =>
+      t.id === id
+        ? { ...t, done: !t.done, completedAt: !t.done ? nowISO() : undefined }
+        : t
+    ));
+  };
+
+  const remove = (id: string) => persist(tasks.filter(t => t.id !== id));
+
+  const visible = tasks.filter(t =>
+    filter === 'all' ? true : filter === 'open' ? !t.done : t.done
+  );
+
+  const openCount = tasks.filter(t => !t.done).length;
+  const doneCount = tasks.filter(t => t.done).length;
+
+  return (
+    <div className="tasks-panel">
+      {/* Header row */}
+      <div className="tasks-head">
+        <span className="tasks-title">TASKS</span>
+        <span className="badge ACTIVE"><span className="bd"></span>{openCount} OPEN</span>
+        <span className="badge dim" style={{ opacity: 0.6 }}>{doneCount} DONE</span>
+        <div className="tasks-filters">
+          {(['all', 'open', 'done'] as const).map(f => (
+            <button
+              key={f}
+              className={'btn sm' + (filter === f ? ' solid' : '')}
+              onClick={() => setFilter(f)}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Add task input */}
+      <div className="tasks-add">
+        <input
+          ref={inputRef}
+          className="tasks-input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addTask()}
+          placeholder="Add a task and press Enter…"
+        />
+        <button className="btn solid sm" onClick={addTask}>+ ADD</button>
+      </div>
+
+      {/* Task list */}
+      <div className="tasks-list">
+        {visible.length === 0 && (
+          <div className="empty" style={{ padding: '24px 0', textAlign: 'center' }}>— NO TASKS —</div>
+        )}
+        {visible.map(t => (
+          <div className={'task-row' + (t.done ? ' done' : '')} key={t.id}>
+            <button
+              className={'task-check' + (t.done ? ' checked' : '')}
+              onClick={() => toggle(t.id)}
+              title={t.done ? 'Mark open' : 'Mark complete'}
+            >
+              {t.done ? '✓' : '▢'}
+            </button>
+            <div className="task-body">
+              <span className="task-text">{t.text}</span>
+              <div className="task-meta">
+                <span className="task-ts">Added {fmtISO(t.createdAt)}</span>
+                {t.done && t.completedAt && (
+                  <span className="task-ts done-ts"> · Done {fmtISO(t.completedAt)}</span>
+                )}
+              </div>
+            </div>
+            <button
+              className="btn sm danger task-del"
+              onClick={() => remove(t.id)}
+              title="Delete"
+            >✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Notebook ─────────────────────────────────────────────────────────────────
 export function Notebook() {
-  const [notes, setNotes] = useState<Note[]>(MOCK_NOTES.map(n => ({ ...n })));
-  const [selId, setSelId] = useState(MOCK_NOTES[0]?.id ?? '');
+  const [tab, setTab]         = useState<'notes' | 'tasks'>('notes');
+  const [notes, setNotes]     = useState<Note[]>(MOCK_NOTES.map(n => ({ ...n })));
+  const [selId, setSelId]     = useState(MOCK_NOTES[0]?.id ?? '');
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sel = notes.find(n => n.id === selId) ?? notes[0];
@@ -84,7 +223,6 @@ export function Notebook() {
   // ── When selection changes, load full body from API ─────────────────────
   useEffect(() => {
     if (!selId) return;
-    // Only fetch if body is missing (list endpoint omits body)
     const current = notes.find(n => n.id === selId);
     if (current?.body) return;
     let mounted = true;
@@ -98,7 +236,6 @@ export function Notebook() {
   // ── Local update + debounced API patch ────────────────────────────────────
   const update = (patch: Partial<Note>) => {
     setNotes(ns => ns.map(n => n.id === selId ? { ...n, ...patch, updated: nowStamp() } : n));
-
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
       patchNote(selId, patch).catch(() => {});
@@ -114,7 +251,6 @@ export function Notebook() {
         setSelId(created.id);
       })
       .catch(() => {
-        // Optimistic local fallback
         const id = 'n' + Date.now();
         const note: Note = { id, title: 'Untitled', tag: 'note', updated: stamp, body: '# Untitled\n\n' };
         setNotes(prev => [note, ...prev]);
@@ -122,65 +258,93 @@ export function Notebook() {
       });
   };
 
-  if (!sel) return <div className="nb"><div className="empty">Loading notes…</div></div>;
-
   return (
     <div className="nb">
-      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <section className="panel nb-sidebar-panel" style={{ overflow: 'hidden' }}>
-        <div className="panel-h">
-          <span className="t">NOTEBOOK</span>
-          <span className="corner">{notes.length} NOTES</span>
-        </div>
-        <div className="panel-body">
-          <div className="nb-sidebar">
-            <button className="btn solid nb-new" onClick={newNote}>+ NEW NOTE</button>
-            {notes.map(n => (
-              <div
-                className={'note-item' + (n.id === selId ? ' sel' : '')}
-                key={n.id}
-                onClick={() => setSelId(n.id)}
-              >
-                <div className="nti">{n.title || 'Untitled'}</div>
-                <div className="ntm">
-                  <span className="ntag">#{n.tag}</span>
-                  <span className="ntime">{n.updated}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      <div className="nb-tabs">
+        <button
+          className={'nb-tab' + (tab === 'notes' ? ' active' : '')}
+          onClick={() => setTab('notes')}
+        >
+          ≣ NOTES
+        </button>
+        <button
+          className={'nb-tab' + (tab === 'tasks' ? ' active' : '')}
+          onClick={() => setTab('tasks')}
+        >
+          ✓ TASKS
+        </button>
+      </div>
 
-      {/* ── Editor ──────────────────────────────────────────────────────── */}
-      <section className="panel nb-editor">
-        <div className="nb-toolbar">
-          <input
-            className="nb-title-input"
-            value={sel.title}
-            onChange={e => update({ title: e.target.value })}
-            placeholder="Untitled"
-          />
-          <span className="flabel" style={{ color: 'var(--muted-2)', fontSize: 9, letterSpacing: 2 }}>
-            {sel.updated}
-          </span>
-          <input
-            className="nb-tag-input"
-            value={sel.tag}
-            onChange={e => update({ tag: e.target.value.replace(/^#/, '') })}
-            placeholder="tag"
-          />
+      {/* ── TASKS tab ────────────────────────────────────────────────────── */}
+      {tab === 'tasks' && (
+        <div className="nb-tasks-wrap">
+          <TasksPanel />
         </div>
-        <div className="nb-split">
-          <textarea
-            className="nb-text"
-            value={sel.body ?? ''}
-            onChange={e => update({ body: e.target.value })}
-            spellCheck={false}
-          />
-          <div className="nb-preview">{renderMarkdown(sel.body ?? '')}</div>
+      )}
+
+      {/* ── NOTES tab ────────────────────────────────────────────────────── */}
+      {tab === 'notes' && (
+        <div className="nb-notes-row">
+          {/* Sidebar */}
+          <section className="panel nb-sidebar-panel" style={{ overflow: 'hidden' }}>
+            <div className="panel-h">
+              <span className="t">NOTEBOOK</span>
+              <span className="corner">{notes.length} NOTES</span>
+            </div>
+            <div className="panel-body">
+              <div className="nb-sidebar">
+                <button className="btn solid nb-new" onClick={newNote}>+ NEW NOTE</button>
+                {notes.map(n => (
+                  <div
+                    className={'note-item' + (n.id === selId ? ' sel' : '')}
+                    key={n.id}
+                    onClick={() => setSelId(n.id)}
+                  >
+                    <div className="nti">{n.title || 'Untitled'}</div>
+                    <div className="ntm">
+                      <span className="ntag">#{n.tag}</span>
+                      <span className="ntime">{n.updated}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Editor */}
+          {sel && (
+            <section className="panel nb-editor">
+              <div className="nb-toolbar">
+                <input
+                  className="nb-title-input"
+                  value={sel.title}
+                  onChange={e => update({ title: e.target.value })}
+                  placeholder="Untitled"
+                />
+                <span className="flabel" style={{ color: 'var(--muted-2)', fontSize: 9, letterSpacing: 2 }}>
+                  {sel.updated}
+                </span>
+                <input
+                  className="nb-tag-input"
+                  value={sel.tag}
+                  onChange={e => update({ tag: e.target.value.replace(/^#/, '') })}
+                  placeholder="tag"
+                />
+              </div>
+              <div className="nb-split">
+                <textarea
+                  className="nb-text"
+                  value={sel.body ?? ''}
+                  onChange={e => update({ body: e.target.value })}
+                  spellCheck={false}
+                />
+                <div className="nb-preview">{renderMarkdown(sel.body ?? '')}</div>
+              </div>
+            </section>
+          )}
         </div>
-      </section>
+      )}
     </div>
   );
 }
