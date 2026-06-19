@@ -16,7 +16,7 @@ services:
       - key: LOG_LEVEL
         value: info
     healthCheckPath: /api/health
-    plan: free
+    plan: pro
 
   # ── Frontend (React + Vite static site) ─────────────────────────────────────
   - type: web
