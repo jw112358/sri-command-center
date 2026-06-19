@@ -11,32 +11,33 @@ defines both automatically.
 
 ---
 
-## Step 1 — Push the repo to GitHub
+## Step 1 — Push the repo to GitHub ✅ DONE (2026-06-15)
 
-The code currently lives locally. It needs to be in a GitHub repo for
-Render to deploy it.
+Repo is live at: **https://github.com/jw112358/sri-command-center**
 
 ```bash
-cd ~/Downloads/design_handoff_sri_os_command_center
-git init
-git add .
-git commit -m "feat: SRI OS Command Center v2 — full stack with Drive projects integration"
-git remote add origin https://github.com/sri-intel/sri-command-center.git
-git push -u origin main
+# Already done — remote is set to:
+# https://github.com/jw112358/sri-command-center.git
+# Future updates: git add . && git commit -m "..." && git push
 ```
 
-> If the repo already exists on GitHub, skip `git init` and `git remote add`.
-> Just commit and push.
+> Note: Repo is under `jw112358` (personal account). The `sri-intel` org
+> was not accessible from this GitHub account. Repo can be transferred to
+> an org later via GitHub Settings → Transfer ownership.
 
 ---
 
-## Step 2 — Deploy on Render via render.yaml
+## Step 2 — Deploy on Render via render.yaml 🔄 IN PROGRESS (2026-06-15)
 
 1. Go to https://dashboard.render.com
-2. Click **New** → **Blueprint**
-3. Connect your GitHub account and select the `sri-intel/sri-command-center` repo
-4. Render will detect `render.yaml` and show both services
-5. Click **Apply** — Render creates and deploys both services
+2. Click **Blueprints** → **+ New Blueprint Instance**
+3. Select `jw112358/sri-command-center` → **Connect**
+4. Blueprint Name: `SRI OS Command Center`, Branch: `main`
+5. Render detects `render.yaml` and shows both services
+6. Fill in env vars (see Step 3) → Click **Apply**
+
+**Status:** Stopped at Step 6 — `VITE_API_URL` is filled in.
+`GITHUB_TOKEN` needs to be entered before clicking Apply.
 
 ---
 
@@ -44,14 +45,14 @@ git push -u origin main
 
 ### Backend (`sri-command-center-api`)
 
-After the first deploy, go to the service → **Environment** tab and set:
+Fill these in the Blueprint form before clicking Apply (or via service → Environment tab):
 
-| Key | Value |
-|-----|-------|
-| `GITHUB_TOKEN` | Your GitHub personal access token (classic, `repo` scope) |
-| `DRIVE_ROOT_FOLDER_ID` | `18LyrWJbV2L01N_6T52BmPcsRr1nJjBcV` (already in render.yaml) |
-| `GITHUB_REPOS` | `sri-intel/legal-agent-os,sri-intel/builder-os,sri-intel/marketing-os` |
-| `CACHE_TTL` | `300` |
+| Key | Value | Status |
+|-----|-------|--------|
+| `GITHUB_TOKEN` | Classic PAT, `repo` scope — generate at github.com/settings/tokens | ⏳ TODO |
+| `DRIVE_ROOT_FOLDER_ID` | `18LyrWJbV2L01N_6T52BmPcsRr1nJjBcV` | ✅ in render.yaml |
+| `GITHUB_REPOS` | `jw112358/legal-agent-os,jw112358/builder-os,jw112358/marketing-os` | ✅ in render.yaml |
+| `CACHE_TTL` | `300` | ✅ in render.yaml |
 
 > **Security rule (verbatim):** All credentials (API keys, OAuth tokens,
 > signing keys) are stored in operator-managed `.env` files or system keychain.
@@ -59,9 +60,9 @@ After the first deploy, go to the service → **Environment** tab and set:
 
 ### Frontend (`sri-command-center`)
 
-| Key | Value |
-|-----|-------|
-| `VITE_API_URL` | `https://sri-command-center-api.onrender.com` (your backend URL) |
+| Key | Value | Status |
+|-----|-------|--------|
+| `VITE_API_URL` | `https://sri-command-center-api.onrender.com` | ✅ filled in Blueprint form |
 
 ---
 
@@ -117,9 +118,10 @@ Render static site (sri-command-center)
         └─► Google Drive API (ADC)   (signal files — when Drive scope fixed)
 ```
 
-When the Google Drive ADC scope is fixed (Task #8 — create OAuth Client ID
-in Google Cloud Console, re-run gcloud auth), the backend will also read
-Drive signal files for real-time agent status updates.
+**Note on Google Drive ADC (2026-06-15):** The sri-intel Google Workspace org
+policy blocks OAuth flows entirely — "This app is blocked" regardless of test
+user settings. Drive ADC is abandoned. The backend reads `data/sri-projects.json`
+as the primary data source instead. This is sufficient for the current use case.
 
 ---
 
