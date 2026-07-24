@@ -281,11 +281,21 @@ html, body {
 .logo-sub { font-size: 9px; letter-spacing: 3px; color: var(--muted-2); }
 
 /* Tab nav */
-.tab-nav { display: flex; gap: 4px; margin-left: 6px; }
+.tab-nav {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+  margin-left: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
 .tab-btn {
   appearance: none; background: transparent; border: 0; cursor: pointer;
   font-family: var(--font-ui); color: var(--muted);
   font-size: 11.5px; letter-spacing: 2px; padding: 8px 16px 9px;
+  flex: 0 0 auto;
   position: relative; border-radius: 3px 3px 0 0;
   transition: color .18s, background .18s;
 }
@@ -303,6 +313,81 @@ html, body {
   .tab-nav { gap: 0; margin-left: 0; }
   .tab-btn { padding-inline: 10px; font-size: 10px; letter-spacing: 1.2px; }
   .sys-health { display: none; }
+}
+
+@media (max-width: 1080px) {
+  .tab-btn { padding-inline: 7px; font-size: 8.5px; letter-spacing: .8px; }
+  .clock .date { display: none; }
+}
+
+/* Future OS placeholders */
+.os-placeholder {
+  height: 100%;
+  padding: 14px;
+}
+.os-placeholder-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.os-placeholder-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 13px;
+  padding: 36px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 215, 0, .07), transparent 34%),
+    linear-gradient(180deg, rgba(13, 32, 80, .32), rgba(6, 15, 30, .18));
+}
+.os-placeholder-mark {
+  color: var(--gold);
+  font-size: 42px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(255, 215, 0, .45);
+}
+.os-placeholder-kicker {
+  color: var(--gold-dim);
+  font-size: 9px;
+  letter-spacing: 3px;
+}
+.os-placeholder-body h1 {
+  margin: 0;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 54px);
+  font-weight: 400;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  text-shadow: 0 0 16px rgba(255, 215, 0, .3);
+}
+.os-placeholder-body > p:not(.os-placeholder-kicker) {
+  max-width: 660px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.os-placeholder-state {
+  width: min(560px, 80vw);
+  display: grid;
+  gap: 6px;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-deep);
+}
+.os-placeholder-state strong {
+  color: var(--gold);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.os-placeholder-state span {
+  color: var(--muted-2);
+  font-size: 9px;
+  line-height: 1.6;
 }
 
 /* Header right */
