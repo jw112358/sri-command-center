@@ -30,6 +30,22 @@ class Settings(BaseSettings):
     # Cache
     cache_ttl: int = 60
 
+    # Legal Agent OS
+    legal_enabled: bool = True
+    legal_state_db: str = "./data/legal-os-state.db"
+    legal_max_active_matters: int = 4
+    legal_api_token: str = ""
+    legal_gmail_enabled: bool = False
+    legal_gmail_shadow_mode: bool = True
+    legal_gmail_poll_interval: int = 60
+    legal_gmail_intake_label: str = "LegalOS/Intake"
+    legal_gmail_processed_label: str = "LegalOS/Processed"
+    legal_gmail_needs_review_label: str = "LegalOS/NeedsReview"
+    legal_gmail_error_label: str = "LegalOS/Error"
+    legal_operator_email: str = "jeff@sri-intel.com"
+    legal_drive_matters_folder_id: str = ""
+    legal_attachment_max_bytes: int = 25_000_000
+
     # ── derived helpers ──────────────────────────────────────────────────────
     @property
     def cors_origins_list(self) -> List[str]:

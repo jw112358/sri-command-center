@@ -17,7 +17,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agents, events, graph, notes, os, projects
+from app.routers import agents, events, graph, legal, notes, os, projects
+from app.services.legal_intake import get_legal_store
 from app.services.ws_manager import manager, drive_poll_loop
 
 logging.basicConfig(
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(notes.router)
     app.include_router(graph.router)
     app.include_router(events.router)
+    app.include_router(legal.router)
 
     # ── WebSocket ─────────────────────────────────────────────────────────────
     @app.websocket("/ws")
@@ -80,6 +82,19 @@ def create_app() -> FastAPI:
         log.info("SRI OS Command Center API starting up")
         log.info(f"Drive enabled: {settings.drive_enabled}")
         log.info(f"GitHub enabled: {settings.github_enabled}")
+        if settings.legal_enabled:
+            get_legal_store()
+            log.info(
+                "Legal Agent OS state initialized "
+                f"(capacity={settings.legal_max_active_matters})"
+            )
+        if settings.legal_gmail_enabled:
+            from app.workers.legal_intake_runner import gmail_poll_loop
+            asyncio.create_task(gmail_poll_loop())
+            log.info(
+                "Legal Agent OS Gmail runner started "
+                f"(interval={settings.legal_gmail_poll_interval}s)"
+            )
         if settings.drive_enabled:
             asyncio.create_task(drive_poll_loop(settings.drive_poll_interval))
             log.info(f"Drive poll loop started (interval={settings.drive_poll_interval}s)")

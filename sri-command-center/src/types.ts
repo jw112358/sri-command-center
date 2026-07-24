@@ -97,6 +97,57 @@ export interface SystemHealth {
   latencyMs: number;
 }
 
+export type LegalRequestType =
+  | 'new_matter'
+  | 'revision'
+  | 'strategy_memo'
+  | 'standalone_research'
+  | 'unknown';
+
+export type LegalMatterStatus =
+  | 'received'
+  | 'validating'
+  | 'needs_operator'
+  | 'conflict_review'
+  | 'queued'
+  | 'researching'
+  | 'drafting'
+  | 'quality_review'
+  | 'pending_approval'
+  | 'approved'
+  | 'delivering'
+  | 'revision_requested'
+  | 'blocked'
+  | 'closed';
+
+export interface LegalMatterSummary {
+  matterId: string;
+  displayName: string;
+  requestType: LegalRequestType;
+  practiceLane: 'civil' | 'appeal';
+  status: LegalMatterStatus;
+  version: number;
+  sourceChannel: 'gmail' | 'master_builder';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalConnectorStatus {
+  name: string;
+  detail: string;
+  status: 'READY' | 'STAGED' | 'BLOCKED';
+}
+
+export interface LegalDashboardState {
+  activeCount: number;
+  capacity: number;
+  awaitingApproval: number;
+  upcomingDeadlines: number;
+  paused: boolean;
+  matters: LegalMatterSummary[];
+  connectors: LegalConnectorStatus[];
+}
+
 // Layout preference
 export type LayoutDir = 'classic' | 'focus' | 'graph';
 

@@ -14,6 +14,9 @@ sri-command-center-api/__pycache__/
 sri-command-center-api/**/__pycache__/
 sri-command-center-api/**/*.pyc
 sri-command-center-api/.venv/
+sri-command-center-api/data/*.db
+sri-command-center-api/data/*.db-shm
+sri-command-center-api/data/*.db-wal
 
 # OS
 .DS_Store
