@@ -132,6 +132,16 @@ export interface LegalMatterSummary {
   updatedAt: string;
 }
 
+export interface LegalAssignmentSummary {
+  assignmentId: string;
+  matterId: string;
+  stage: LegalMatterStatus;
+  status: 'running' | 'completed';
+  startedAt: string;
+  completedAt?: string | null;
+  outcomeStatus?: LegalMatterStatus | null;
+}
+
 export interface LegalConnectorStatus {
   name: string;
   detail: string;

@@ -205,6 +205,29 @@ class LegalMatterSummary(BaseModel):
     updatedAt: str
 
 
+class LegalAssignmentSummary(BaseModel):
+    assignmentId: str
+    matterId: str
+    stage: LegalMatterStatus
+    status: Literal["running", "completed"]
+    startedAt: str
+    completedAt: Optional[str] = None
+    outcomeStatus: Optional[LegalMatterStatus] = None
+
+
+class LegalAssignmentStartRequest(BaseModel):
+    matterId: str = Field(min_length=1, max_length=100)
+    workerId: str = Field(min_length=1, max_length=200)
+
+
+class LegalAssignmentStartReceipt(BaseModel):
+    leaseId: str
+
+
+class LegalAssignmentCompleteRequest(BaseModel):
+    nextStatus: LegalMatterStatus = "pending_approval"
+
+
 class LegalIntakeReceipt(BaseModel):
     eventId: str
     matter: LegalMatterSummary

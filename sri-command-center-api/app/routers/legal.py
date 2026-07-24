@@ -7,6 +7,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.config import settings
 from app.models import (
+    LegalAssignmentCompleteRequest,
+    LegalAssignmentStartReceipt,
+    LegalAssignmentStartRequest,
+    LegalAssignmentSummary,
     LegalAuthConfig,
     LegalDashboardState,
     LegalGoogleCredentialRequest,
@@ -106,6 +110,40 @@ def dashboard():
 @router.get("/matters", response_model=list[LegalMatterSummary])
 def matters():
     return get_legal_store().list_matters()
+
+
+@router.get("/assignments", response_model=list[LegalAssignmentSummary])
+def assignments():
+    """Public-safe assignment feed: generated identifiers and workflow state only."""
+    return get_legal_store().list_assignments()
+
+
+@router.post(
+    "/assignments/start",
+    response_model=LegalAssignmentStartReceipt,
+    dependencies=[Depends(require_operator)],
+)
+def start_assignment(body: LegalAssignmentStartRequest):
+    lease_id = get_legal_store().acquire_lease(body.matterId, body.workerId)
+    if not lease_id:
+        raise HTTPException(
+            409,
+            "Assignment could not start; verify matter state, capacity, and pause status",
+        )
+    return LegalAssignmentStartReceipt(leaseId=lease_id)
+
+
+@router.post(
+    "/assignments/{lease_id}/complete",
+    dependencies=[Depends(require_operator)],
+)
+def complete_assignment(
+    lease_id: str,
+    body: LegalAssignmentCompleteRequest,
+):
+    if not get_legal_store().release_lease(lease_id, body.nextStatus):
+        raise HTTPException(404, "Active legal assignment not found")
+    return {"completed": True}
 
 
 @router.post(

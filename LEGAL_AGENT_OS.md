@@ -12,6 +12,8 @@ Read-only, sanitized endpoints:
 
 - `GET /api/legal/dashboard`
 - `GET /api/legal/matters`
+- `GET /api/legal/assignments`
+- `GET /api/notes`
 
 Dashboard responses contain generated matter identifiers, workflow states,
 counts, and connector health. They do not expose parties, message content,
@@ -22,6 +24,8 @@ Protected operator endpoints:
 - `POST /api/legal/auth/google`
 - `GET /api/legal/auth/session`
 - `POST /api/legal/intake`
+- `POST /api/legal/assignments/start`
+- `POST /api/legal/assignments/{lease_id}/complete`
 - `POST /api/legal/pause`
 - `POST /api/legal/resume`
 
@@ -114,3 +118,17 @@ transactional control plane and must use persistent storage in production.
 On Render, mount a paid-service persistent disk at `/var/data`; only paths under
 that mount survive deploys and restarts. The disk should be attached through the
 Render service settings after confirming the storage cost.
+
+## Dashboard activity
+
+The protected assignment lifecycle endpoints are the worker-facing boundary.
+Starting an assignment acquires one of the four work slots and transactionally
+creates both a running assignment record and a `legal-os` activity note.
+Completing that lease transactionally closes the assignment, advances the matter,
+and creates the completion note.
+
+The Command Center and Notebook refresh these public-safe records every five
+seconds. Activity notes are read-only in the Notebook and include only generated
+matter and assignment identifiers, workflow state, and timestamps. Party names,
+source communications, legal analysis, and work product never enter these
+dashboard records.

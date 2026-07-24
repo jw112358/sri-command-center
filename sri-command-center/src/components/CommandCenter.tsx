@@ -1,9 +1,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Agent, GraphNode, OSPlugin, GraphData, Selection, Tweaks, LogLine } from '../types';
+import type {
+  Agent,
+  GraphNode,
+  OSPlugin,
+  GraphData,
+  LegalAssignmentSummary,
+  Selection,
+  Tweaks,
+  LogLine,
+} from '../types';
 import {
   getOSPlugins, getAgents, getAgentLog,
   pauseAgent, stopAgent, restartAgent, messageAgent,
-  getGraph, launchOS, connectWS, markNodeComplete,
+  getGraph, getLegalAssignments, launchOS, connectWS, markNodeComplete,
 } from '../api/client';
 import {
   RUNNING_AGENTS as MOCK_AGENTS,
@@ -27,6 +36,17 @@ function lineClass(ln: string): string {
   if (/⚠/.test(ln)) return 'warn';
   if (/^✓|^→ cache|heartbeat|checkpoint/.test(ln)) return 'dim';
   return '';
+}
+
+function fmtActivityTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 // ─── LiveLog ──────────────────────────────────────────────────────────────────
@@ -231,6 +251,48 @@ function OSRegistry({ plugins, selAgent, onLaunch }: OSRegistryProps) {
   );
 }
 
+function LegalAssignmentsPanel({ assignments }: { assignments: LegalAssignmentSummary[] }) {
+  const runningCount = assignments.filter(item => item.status === 'running').length;
+  return (
+    <>
+      <div className="panel-h">
+        <span className="blip"></span>
+        <span className="t">LEGAL ASSIGNMENTS</span>
+        <span className="corner">{runningCount} ACTIVE · {assignments.length} RECENT</span>
+      </div>
+      <div className="panel-body legal-assignment-list">
+        {assignments.length === 0 ? (
+          <div className="legal-assignment-empty">
+            NO LEGAL ASSIGNMENTS STARTED
+            <small>Assignments appear here when the Legal OS acquires a work slot.</small>
+          </div>
+        ) : assignments.slice(0, 8).map(assignment => {
+          const displayStage = (
+            assignment.status === 'completed'
+              ? assignment.outcomeStatus ?? assignment.stage
+              : assignment.stage
+          ).replace(/_/g, ' ').toUpperCase();
+          const activityAt = assignment.completedAt ?? assignment.startedAt;
+          return (
+            <div className="legal-assignment-row" key={assignment.assignmentId}>
+              <span className="legal-assignment-id">
+                <strong>{assignment.matterId}</strong>
+                <small>{assignment.assignmentId}</small>
+              </span>
+              <span className="legal-assignment-stage">{displayStage}</span>
+              <span className={'badge ' + (assignment.status === 'running' ? 'RUNNING' : 'COMPLETE')}>
+                <span className="bd"></span>
+                {assignment.status.toUpperCase()}
+              </span>
+              <time dateTime={activityAt}>{fmtActivityTime(activityAt)}</time>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 // ─── CommandCenter (main export) ──────────────────────────────────────────────
 
 export interface CommandCenterProps {
@@ -246,6 +308,7 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
   const [agents, setAgents]   = useState<Agent[]>(MOCK_AGENTS);
   const [osPlugins, setOS]    = useState<OSPlugin[]>(MOCK_OS);
   const [graphData, setGraph] = useState<GraphData>(MOCK_GRAPH);
+  const [legalAssignments, setLegalAssignments] = useState<LegalAssignmentSummary[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
 
   // ── UI state ─────────────────────────────────────────────────────────────
@@ -274,15 +337,31 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
   // ── Initial data load ────────────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
-    Promise.all([getAgents(), getOSPlugins(), getGraph()]).then(([ag, os, gd]) => {
+    Promise.all([getAgents(), getOSPlugins(), getGraph(), getLegalAssignments()]).then(([ag, os, gd, legal]) => {
       if (!mounted) return;
       setAgents(ag);
       setOS(os);
       setGraph(gd);
+      setLegalAssignments(legal);
       setElapsed(Object.fromEntries(ag.map(a => [a.id, a.elapsed ?? 0])));
       if (ag.length > 0) setSelection({ type: 'agent', agent: ag[0] });
     }).catch(() => { /* keep mock data */ });
     return () => { mounted = false; };
+  }, []);
+
+  // ── Legal assignment live feed ───────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => {
+      getLegalAssignments().then(items => {
+        if (mounted) setLegalAssignments(items);
+      }).catch(() => {});
+    };
+    const interval = window.setInterval(refresh, 5_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   // ── Load agent log when selection changes ────────────────────────────────
@@ -439,7 +518,7 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
           style={
             layoutDir === 'graph'
               ? { flex: '0 0 420px', minHeight: 0, overflow: 'hidden' }
-              : { flex: '0 0 auto', maxHeight: '44%', overflow: 'hidden' }
+              : { flex: '0 0 auto', maxHeight: '36%', overflow: 'hidden' }
           }
         >
           <div className="panel-h">
@@ -473,6 +552,18 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Legal assignment activity */}
+        <div
+          className="panel legal-assignment-panel"
+          style={
+            layoutDir === 'graph'
+              ? { flex: '0 0 390px', minHeight: 0, overflow: 'hidden' }
+              : { flex: '0 0 auto', maxHeight: '32%', overflow: 'hidden' }
+          }
+        >
+          <LegalAssignmentsPanel assignments={legalAssignments} />
         </div>
 
         {/* Live terminal log */}
