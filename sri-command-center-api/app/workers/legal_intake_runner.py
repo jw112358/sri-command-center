@@ -19,20 +19,30 @@ from app.services.legal_intake import get_legal_store
 log = logging.getLogger(__name__)
 _gmail_service = None
 _drive_service = None
+_google_credentials = None
+
+
+def _get_google_credentials():
+    global _google_credentials
+    if _google_credentials is None:
+        from app.services.legal_google import load_legal_google_credentials
+
+        _google_credentials = load_legal_google_credentials()
+    return _google_credentials
 
 
 def _get_gmail_service():
     global _gmail_service
     if _gmail_service is not None:
         return _gmail_service
-    import google.auth
     from googleapiclient.discovery import build
 
-    credentials, _ = google.auth.default(scopes=[
-        "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/drive.file",
-    ])
-    _gmail_service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    _gmail_service = build(
+        "gmail",
+        "v1",
+        credentials=_get_google_credentials(),
+        cache_discovery=False,
+    )
     return _gmail_service
 
 
@@ -40,14 +50,14 @@ def _get_drive_service():
     global _drive_service
     if _drive_service is not None:
         return _drive_service
-    import google.auth
     from googleapiclient.discovery import build
 
-    credentials, _ = google.auth.default(scopes=[
-        "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/drive.file",
-    ])
-    _drive_service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+    _drive_service = build(
+        "drive",
+        "v3",
+        credentials=_get_google_credentials(),
+        cache_discovery=False,
+    )
     return _drive_service
 
 

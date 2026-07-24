@@ -213,6 +213,30 @@ class LegalIntakeReceipt(BaseModel):
     acknowledgementStatus: Literal["draft_pending_approval"] = "draft_pending_approval"
 
 
+class LegalAuthConfig(BaseModel):
+    enabled: bool
+    provider: Literal["google_workspace"] = "google_workspace"
+    clientId: str = ""
+    sessionTtlSeconds: int
+    manualIntakeEnabled: bool
+
+
+class LegalGoogleCredentialRequest(BaseModel):
+    credential: str = Field(min_length=100, max_length=10_000)
+
+
+class LegalOperatorSession(BaseModel):
+    accessToken: str
+    email: str
+    expiresAt: str
+
+
+class LegalSessionStatus(BaseModel):
+    authenticated: Literal[True] = True
+    email: str
+    expiresAt: str
+
+
 class LegalConnectorStatus(BaseModel):
     name: str
     detail: str

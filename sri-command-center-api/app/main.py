@@ -89,12 +89,23 @@ def create_app() -> FastAPI:
                 f"(capacity={settings.legal_max_active_matters})"
             )
         if settings.legal_gmail_enabled:
-            from app.workers.legal_intake_runner import gmail_poll_loop
-            asyncio.create_task(gmail_poll_loop())
-            log.info(
-                "Legal Agent OS Gmail runner started "
-                f"(interval={settings.legal_gmail_poll_interval}s)"
-            )
+            from app.services.legal_google import legal_runner_config_errors
+
+            runner_errors = legal_runner_config_errors()
+            if runner_errors:
+                log.error(
+                    "Legal Agent OS Gmail runner blocked: %s",
+                    "; ".join(runner_errors),
+                )
+            else:
+                from app.workers.legal_intake_runner import gmail_poll_loop
+
+                asyncio.create_task(gmail_poll_loop())
+                log.info(
+                    "Legal Agent OS Gmail runner started "
+                    f"(interval={settings.legal_gmail_poll_interval}s; "
+                    f"shadow={settings.legal_gmail_shadow_mode})"
+                )
         if settings.drive_enabled:
             asyncio.create_task(drive_poll_loop(settings.drive_poll_interval))
             log.info(f"Drive poll loop started (interval={settings.drive_poll_interval}s)")

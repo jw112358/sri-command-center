@@ -8,7 +8,9 @@
 
 import type {
   OSPlugin, Agent, LogLine, Project, Note, GraphData,
-  SystemEvent, SystemHealth, LegalDashboardState,
+  SystemEvent, SystemHealth, LegalDashboardState, LegalAuthConfig,
+  LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
+  LegalSessionStatus,
 } from '../types';
 import * as mock from '../mock/data';
 
@@ -16,15 +18,49 @@ import * as mock from '../mock/data';
 // Vite exposes VITE_API_URL from .env; falls back to localhost:8000
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 const WS_BASE  = API_BASE.replace(/^http/, 'ws');
+const LEGAL_SESSION_KEY = 'sri.legal.operator-session';
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (path.startsWith('/api/legal/')) {
+    const accessToken = getStoredLegalAccessToken();
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  }
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers,
   });
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = await res.json() as { detail?: string };
+      detail = body.detail ? ` · ${body.detail}` : '';
+    } catch { /* response body is optional */ }
+    throw new Error(`API ${path} → ${res.status}${detail}`);
+  }
   return res.json() as Promise<T>;
+}
+
+function getStoredLegalAccessToken(): string | null {
+  try {
+    return window.sessionStorage.getItem(LEGAL_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeLegalAccessToken(token: string): void {
+  window.sessionStorage.setItem(LEGAL_SESSION_KEY, token);
+}
+
+export function clearLegalOperatorSession(): void {
+  try {
+    window.sessionStorage.removeItem(LEGAL_SESSION_KEY);
+  } catch { /* browser storage may be unavailable */ }
 }
 
 // ── Reachability ──────────────────────────────────────────────────────────────
@@ -147,6 +183,56 @@ export async function getLegalDashboard(): Promise<LegalDashboardState | null> {
   } catch {
     return null;
   }
+}
+
+export async function getLegalAuthConfig(): Promise<LegalAuthConfig | null> {
+  if (!await isApiReachable()) return null;
+  try {
+    return await apiFetch<LegalAuthConfig>('/api/legal/auth/config');
+  } catch {
+    return null;
+  }
+}
+
+export async function signInLegalOperator(
+  credential: string,
+): Promise<LegalOperatorSession> {
+  const session = await apiFetch<LegalOperatorSession>('/api/legal/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  });
+  storeLegalAccessToken(session.accessToken);
+  return session;
+}
+
+export async function getLegalOperatorSession(): Promise<LegalSessionStatus | null> {
+  if (!getStoredLegalAccessToken()) return null;
+  try {
+    return await apiFetch<LegalSessionStatus>('/api/legal/auth/session');
+  } catch {
+    clearLegalOperatorSession();
+    return null;
+  }
+}
+
+export async function submitLegalIntake(body: {
+  requestType: LegalRequestType;
+  body: string;
+  practiceLane: 'civil' | 'appeal';
+  operatorNotes?: string;
+}): Promise<LegalIntakeReceipt> {
+  return apiFetch<LegalIntakeReceipt>('/api/legal/intake', {
+    method: 'POST',
+    body: JSON.stringify({ channel: 'master_builder', ...body }),
+  });
+}
+
+export async function pauseLegalOS(): Promise<{ paused: boolean }> {
+  return apiFetch('/api/legal/pause', { method: 'POST' });
+}
+
+export async function resumeLegalOS(): Promise<{ paused: boolean }> {
+  return apiFetch('/api/legal/resume', { method: 'POST' });
 }
 
 export async function launchOS(id: string, task?: string) {
