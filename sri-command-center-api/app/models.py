@@ -99,6 +99,30 @@ class Note(BaseModel):
     updatedAt: str
 
 
+class Task(BaseModel):
+    id: str
+    text: str
+    done: bool = False
+    createdAt: str
+    completedAt: Optional[str] = None
+    updatedAt: str
+
+
+class SessionBrief(BaseModel):
+    id: str
+    sessionId: str
+    date: str
+    title: str
+    project: str
+    surface: str
+    status: str
+    summary: str
+    currentState: Optional[str] = None
+    nextStart: str
+    sourceUrl: str
+    updatedAt: str
+
+
 class GraphNode(BaseModel):
     id:            str
     label:         str
@@ -163,6 +187,16 @@ class PatchNoteRequest(BaseModel):
     title: Optional[str] = None
     tag:   Optional[str] = None
     body:  Optional[str] = None
+
+
+class CreateTaskRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2_000)
+
+
+class PatchTaskRequest(BaseModel):
+    text: Optional[str] = Field(default=None, min_length=1, max_length=2_000)
+    done: Optional[bool] = None
+
 
 class AddGraphLinkRequest(BaseModel):
     source: str

@@ -1,5 +1,25 @@
 # Handoff: SRI OS Command Center
 
+## Current implementation
+
+The production application now has four primary tabs: Command Center, Notebook,
+Mission Control, and Legal Agent OS.
+
+- Notebook notes and tasks use the authenticated, Google Drive-backed dashboard
+  state service. They remain read-only until Jeff's operator sign-in and the
+  restricted Drive service account are configured.
+- Notebook Session Briefs are a project- and surface-agnostic index of the
+  canonical `SRI Agent Platform/session-summaries` folder. Each brief ends with a
+  required **Begin next session here** instruction and links to its full Drive
+  source. No private summary text is bundled into the public repository.
+- Mission Control reads the live project portfolio and provides authenticated,
+  durable create, edit, delete, and lane-move actions for dashboard-created
+  projects. It does not pretend that an unsaved change succeeded.
+
+Production writes require `LEGAL_GOOGLE_CLIENT_ID`, `LEGAL_SESSION_SECRET`,
+`GOOGLE_SERVICE_ACCOUNT_JSON`, and `DASHBOARD_DRIVE_WRITE_ENABLED=true`. Share
+only the intended SRI Drive root with that service account.
+
 ## Overview
 SRI OS Command Center is a full-screen desktop dashboard — the single pane of glass for an
 operator running a fleet of "OS plugins" (Builder OS, Legal OS, Marketing OS, etc.), each of

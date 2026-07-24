@@ -58,6 +58,30 @@ export interface Note {
   updated?: string;     // formatted string used by mock
 }
 
+export interface Task {
+  id: string;
+  text: string;
+  done: boolean;
+  createdAt: string;
+  completedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface SessionBrief {
+  id: string;
+  sessionId: string;
+  date: string;
+  title: string;
+  project: string;
+  surface: string;
+  status: string;
+  summary: string;
+  currentState?: string | null;
+  nextStart: string;
+  sourceUrl: string;
+  updatedAt: string;
+}
+
 export type NodeKind = 'hub' | 'project' | 'agent' | 'skill';
 export type NodeStatus = 'ACTIVE' | 'BLOCKED' | 'COMPLETE';
 

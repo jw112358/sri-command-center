@@ -1,16 +1,18 @@
 """app/routers/projects.py — Mission Control project endpoints"""
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from typing import List
 
 from app.models import Project, CreateProjectRequest, PatchProjectRequest
+from app.routers.legal import require_operator
 from app.services import drive
+from app.services.dashboard_state import (
+    DashboardStateUnavailable,
+    get_dashboard_store,
+)
 from app.services.ws_manager import broadcast_project_updated
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
-
-# In-memory mutation store (mutations written to Drive signals + kept here for instant response)
-_overrides: dict = {}  # project_id → partial dict
 
 
 @router.get("", response_model=List[Project])
@@ -28,37 +30,44 @@ def list_projects():
     except Exception:
         pass
 
-    # Apply in-memory lane overrides from PATCH calls
-    result = []
-    for p in projects:
-        if p.id in _overrides:
-            p = p.model_copy(update=_overrides[p.id])
-        result.append(p)
+    try:
+        dashboard_projects = {
+            project.id: project for project in get_dashboard_store().list_projects()
+        }
+    except DashboardStateUnavailable:
+        dashboard_projects = {}
+    merged = {project.id: project for project in projects}
+    merged.update(dashboard_projects)
+    return list(merged.values())
 
-    return result
 
-
-@router.post("", response_model=Project, status_code=201)
+@router.post(
+    "",
+    response_model=Project,
+    status_code=201,
+    dependencies=[Depends(require_operator)],
+)
 async def create_project(body: CreateProjectRequest):
-    from app.models import Lane
-    import uuid
-    proj = Project(
-        id=f"p:{uuid.uuid4().hex[:8]}",
-        name=body.name,
-        os=body.os,
-        owner=body.owner,
-        priority=body.priority,
-        lane=Lane.PLANNING,
-        updatedAt=datetime.now(timezone.utc).isoformat(),
-    )
-    drive.write_signal(body.os, "project-created", proj.model_dump())
+    try:
+        proj = get_dashboard_store().create_project(
+            name=body.name,
+            os_id=body.os,
+            owner=body.owner,
+            priority=body.priority,
+        )
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
     await broadcast_project_updated(proj.model_dump())
     return proj
 
 
-@router.patch("/{project_id}", response_model=Project)
+@router.patch(
+    "/{project_id}",
+    response_model=Project,
+    dependencies=[Depends(require_operator)],
+)
 async def patch_project(project_id: str, body: PatchProjectRequest):
-    projects = {p.id: p for p in drive.get_projects()}
+    projects = {p.id: p for p in list_projects()}
 
     # Also search GitHub projects
     try:
@@ -75,10 +84,29 @@ async def patch_project(project_id: str, body: PatchProjectRequest):
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     patch["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
-    # Store override for fast response; also write signal
-    _overrides[project_id] = {**_overrides.get(project_id, {}), **patch}
     updated = proj.model_copy(update=patch)
-
-    drive.write_signal(updated.os, "project-updated", updated.model_dump())
+    try:
+        updated = get_dashboard_store().upsert_project(updated)
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
     await broadcast_project_updated(updated.model_dump())
     return updated
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=204,
+    dependencies=[Depends(require_operator)],
+)
+async def delete_project(project_id: str):
+    if not project_id.startswith("p:"):
+        raise HTTPException(
+            409,
+            "Canonical registry projects cannot be deleted from Mission Control",
+        )
+    try:
+        if not get_dashboard_store().delete_project(project_id):
+            raise HTTPException(404, f"Project '{project_id}' not found")
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return Response(status_code=204)

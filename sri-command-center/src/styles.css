@@ -576,6 +576,43 @@ html, body {
   border: 1px solid var(--gold-dim); display: grid; place-items: center;
   font-size: 8px; color: var(--gold); letter-spacing: .5px; }
 .mc-card .cupd { font-size: 9.5px; color: var(--muted-2); }
+.mc-edit { margin-left: auto; padding: 2px 7px; font-size: 8px; }
+.mc-sync-state {
+  color: var(--gold-dim);
+  font-size: 8px;
+  letter-spacing: .8px;
+}
+.mc-sync-state.error { color: var(--err); }
+.mc-sync-state.saving { color: var(--muted); }
+.mc-project-dialog { width: min(520px, calc(100vw - 32px)); display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mc-project-dialog .modal-h,
+.mc-project-dialog .mc-dialog-actions,
+.mc-project-dialog .mc-dialog-error { grid-column: 1 / -1; }
+.mc-project-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted-2);
+  font-size: 8.5px;
+  letter-spacing: 1.2px;
+}
+.mc-project-dialog input,
+.mc-project-dialog select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-deep);
+  color: var(--white);
+  font: 10.5px var(--font-ui);
+  outline: none;
+}
+.mc-project-dialog input:focus,
+.mc-project-dialog select:focus { border-color: var(--gold); }
+.mc-dialog-actions { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; margin-top: 4px; }
+.mc-dialog-error { color: var(--err); font-size: 9.5px; line-height: 1.45; margin: 0; }
 
 /* ─── Tasks Panel ────────────────────────────────────────────────────────── */
 .nb-tasks-wrap { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }

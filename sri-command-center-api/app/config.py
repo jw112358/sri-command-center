@@ -11,9 +11,16 @@ class Settings(BaseSettings):
 
     # Google Drive
     google_service_account_file: str = "./credentials/sri-service-account.json"
+    google_service_account_json: str = ""
     drive_root_folder_id: str = ""
     drive_signals_folder_name: str = "signals"
     drive_poll_interval: int = 30
+    dashboard_drive_write_enabled: bool = False
+    dashboard_state_folder_id: str = ""
+    dashboard_state_file_name: str = "sri-command-center-state.json"
+    dashboard_session_summaries_folder_id: str = (
+        "18izBaGlyEQBF8aWaGRajxTRp_oO9ejWk"
+    )
 
     # GitHub
     github_token: str = ""
@@ -66,6 +73,10 @@ class Settings(BaseSettings):
     @property
     def drive_enabled(self) -> bool:
         return bool(self.drive_root_folder_id)
+
+    @property
+    def dashboard_state_parent_id(self) -> str:
+        return self.dashboard_state_folder_id or self.drive_root_folder_id
 
     @property
     def github_enabled(self) -> bool:
