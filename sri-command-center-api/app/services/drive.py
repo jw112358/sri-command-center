@@ -9,8 +9,8 @@ Signal file convention (from SRI Agent Platform spec):
     project_id, project_name, project_os, project_owner, priority, lane,
     note_id, note_title, note_tag, note_body
 
-When DRIVE_ROOT_FOLDER_ID is not set the service falls back to mock data
-so the frontend always has something to display during local development.
+When Drive is unavailable, private live records remain unavailable. The
+service never fabricates successful mutations.
 """
 from __future__ import annotations
 
@@ -63,6 +63,7 @@ def _store(key: str, value: Any) -> Any:
 
 # ── Drive client (lazy init) ───────────────────────────────────────────────────
 _drive_service = None
+_drive_service_attempted = False
 
 
 def _get_drive_service():
@@ -78,9 +79,10 @@ def _get_drive_service():
          GOOGLE_SERVICE_ACCOUNT_FILE is set in .env AND the file exists.
          Skip silently if the org policy blocks key creation.
     """
-    global _drive_service
-    if _drive_service is not None:
+    global _drive_service, _drive_service_attempted
+    if _drive_service_attempted:
         return _drive_service
+    _drive_service_attempted = True
 
     from googleapiclient.discovery import build
     scope = (
@@ -133,7 +135,7 @@ def _get_drive_service():
         except Exception as sa_err:
             log.warning(f"Service account auth failed ({sa_err})")
 
-    log.warning("Google Drive: no valid credentials found — using mock data fallback")
+    log.warning("Google Drive: no valid credentials found — live Drive data unavailable")
     _drive_service = None
     return _drive_service
 
@@ -656,10 +658,17 @@ def write_signal(os_id: str, event_type: str, data: Dict[str, Any]) -> bool:
     Path: ROOT/<os_id>/signals/YYYY-MM-DD_<os_id>_<event_type>.md
     Returns True on success.
     """
+    if not settings.command_dispatch_enabled:
+        log.warning(
+            "Command dispatch is disabled; rejected %s/%s",
+            os_id,
+            event_type,
+        )
+        return False
     svc = _get_drive_service()
     if not svc or not settings.drive_enabled:
-        log.info(f"[mock] write_signal {os_id}/{event_type}: {data}")
-        return True  # no-op in dev
+        log.warning("Drive command transport unavailable for %s/%s", os_id, event_type)
+        return False
 
     try:
         from googleapiclient.http import MediaInMemoryUpload

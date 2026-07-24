@@ -7,7 +7,7 @@ import {
   getProjects,
   patchProject,
 } from '../api/client';
-import { LANES, OS_REGISTRY as MOCK_OS } from '../mock/data';
+const LANES: Lane[] = ['PLANNING', 'IN PROGRESS', 'BLOCKED', 'COMPLETE'];
 
 interface ProjectDraft {
   name: string;
@@ -133,7 +133,7 @@ export function MissionControl() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [drag, setDrag] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
-  const [osPlugins, setOsPlugins] = useState<OSPlugin[]>(MOCK_OS);
+  const [osPlugins, setOsPlugins] = useState<OSPlugin[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
@@ -143,18 +143,23 @@ export function MissionControl() {
   const osNames = Object.fromEntries(osPlugins.map(os => [os.id, os.name]));
 
   const refresh = useCallback(() => {
-    Promise.all([getProjects(), getOSPlugins()]).then(([items, systems]) => {
-      setProjects(items.map(project => ({
-        ...project,
-        updated: project.updated ?? (
-          project.updatedAt
-            ? new Date(project.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : '—'
-        ),
-      })));
-      setOsPlugins(systems);
-      setSyncState('loaded');
-    }).catch(() => setSyncState('error'));
+    Promise.allSettled([getProjects(), getOSPlugins()]).then(([projectResult, osResult]) => {
+      if (projectResult.status === 'fulfilled') {
+        setProjects(projectResult.value.map(project => ({
+          ...project,
+          updated: project.updated ?? (
+            project.updatedAt
+              ? new Date(project.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : '—'
+          ),
+        })));
+        setSyncState('loaded');
+      } else {
+        setProjects([]);
+        setSyncState('error');
+      }
+      if (osResult.status === 'fulfilled') setOsPlugins(osResult.value);
+    });
   }, []);
 
   useEffect(() => {

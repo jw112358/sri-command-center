@@ -157,6 +157,13 @@ class SystemHealth(BaseModel):
     latencyMs: int
 
 
+class DashboardCapabilities(BaseModel):
+    operatorAuthConfigured: bool
+    driveReadConnected: bool
+    dashboardPersistenceEnabled: bool
+    commandDispatchEnabled: bool
+
+
 # ── Request / response bodies ─────────────────────────────────────────────────
 
 class LaunchOSRequest(BaseModel):

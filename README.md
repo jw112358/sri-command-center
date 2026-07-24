@@ -15,10 +15,17 @@ Mission Control, and Legal Agent OS.
 - Mission Control reads the live project portfolio and provides authenticated,
   durable create, edit, delete, and lane-move actions for dashboard-created
   projects. It does not pretend that an unsaved change succeeded.
+- Command Center no longer substitutes demonstration agents, logs, notifications,
+  or project nodes for unavailable live data. Private reads and the live event
+  stream require Jeff's operator session. External controls remain visibly
+  read-only until a verified OS command adapter is connected.
 
 Production writes require `LEGAL_GOOGLE_CLIENT_ID`, `LEGAL_SESSION_SECRET`,
 `GOOGLE_SERVICE_ACCOUNT_JSON`, and `DASHBOARD_DRIVE_WRITE_ENABLED=true`. Share
 only the intended SRI Drive root with that service account.
+
+Keep `COMMAND_DISPATCH_ENABLED=false` until a real OS runner has passed
+end-to-end command receipt, execution, acknowledgement, and failure tests.
 
 ## Overview
 SRI OS Command Center is a full-screen desktop dashboard — the single pane of glass for an

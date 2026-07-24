@@ -121,6 +121,13 @@ export interface SystemHealth {
   latencyMs: number;
 }
 
+export interface DashboardCapabilities {
+  operatorAuthConfigured: boolean;
+  driveReadConnected: boolean;
+  dashboardPersistenceEnabled: boolean;
+  commandDispatchEnabled: boolean;
+}
+
 export type LegalRequestType =
   | 'new_matter'
   | 'revision'

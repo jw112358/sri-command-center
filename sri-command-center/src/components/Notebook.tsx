@@ -220,6 +220,7 @@ function SessionBriefsPanel() {
   const [selectedId, setSelectedId] = useState('');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -228,9 +229,17 @@ function SessionBriefsPanel() {
         if (!mounted) return;
         setBriefs(items);
         setSelectedId(current => items.some(item => item.id === current) ? current : items[0]?.id ?? '');
+        setError('');
         setLoading(false);
-      }).catch(() => {
-        if (mounted) setLoading(false);
+      }).catch(reason => {
+        if (!mounted) return;
+        const message = reason instanceof Error ? reason.message : '';
+        setError(
+          /authorization|authentication|not configured|session expired/i.test(message)
+            ? 'SIGN IN ON LEGAL AGENT OS TO VIEW PRIVATE SESSION BRIEFS'
+            : 'SESSION BRIEFS ARE TEMPORARILY UNAVAILABLE',
+        );
+        setLoading(false);
       });
     };
     refresh();
@@ -278,7 +287,7 @@ function SessionBriefsPanel() {
             </button>
           ))}
           {!loading && visible.length === 0 && (
-            <div className="empty">— NO SESSION BRIEFS FOUND —</div>
+            <div className="empty">{error || '— NO SESSION BRIEFS FOUND —'}</div>
           )}
           {loading && <div className="empty">READING PLATFORM SUMMARIES…</div>}
         </div>
@@ -324,7 +333,7 @@ function SessionBriefsPanel() {
           </>
         ) : (
           <div className="empty session-brief-empty">
-            Session briefs appear when the canonical Platform summary folder is connected.
+            {error || 'Session briefs appear when the canonical Platform summary folder is connected.'}
           </div>
         )}
       </section>

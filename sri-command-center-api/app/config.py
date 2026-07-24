@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     drive_signals_folder_name: str = "signals"
     drive_poll_interval: int = 30
     dashboard_drive_write_enabled: bool = False
+    command_dispatch_enabled: bool = False
     dashboard_state_folder_id: str = ""
     dashboard_state_file_name: str = "sri-command-center-state.json"
     dashboard_session_summaries_folder_id: str = (

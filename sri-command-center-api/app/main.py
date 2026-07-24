@@ -29,6 +29,7 @@ from app.routers import (
     tasks,
 )
 from app.services.legal_intake import get_legal_store
+from app.services.legal_auth import authenticate_operator_token
 from app.services.ws_manager import manager, drive_poll_loop
 
 logging.basicConfig(
@@ -72,20 +73,36 @@ def create_app() -> FastAPI:
     # ── WebSocket ─────────────────────────────────────────────────────────────
     @app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket):
-        await manager.connect(ws)
+        origin = ws.headers.get("origin")
+        if origin and origin not in settings.cors_origins_list:
+            await ws.close(code=1008)
+            return
+        await ws.accept()
         try:
+            raw_auth = await asyncio.wait_for(ws.receive_text(), timeout=10)
+            import json
+            auth_message = json.loads(raw_auth)
+            if auth_message.get("type") != "auth":
+                raise ValueError("WebSocket authentication required")
+            authenticate_operator_token(str(auth_message.get("token", "")))
+            await manager.connect(ws, accepted=True)
+            await manager.send_to(ws, {"type": "authenticated"})
             while True:
                 # Keep connection alive; handle incoming operator messages
                 data = await ws.receive_text()
                 # Client can send: { "type": "ping" } or operator interact messages
-                import json
                 try:
                     msg = json.loads(data)
                     if msg.get("type") == "ping":
                         await manager.send_to(ws, {"type": "pong"})
                 except Exception:
                     pass
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, ValueError, asyncio.TimeoutError):
+            try:
+                await ws.close(code=1008)
+            except Exception:
+                pass
+        finally:
             await manager.disconnect(ws)
 
     # ── Startup / shutdown ────────────────────────────────────────────────────

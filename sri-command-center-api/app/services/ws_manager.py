@@ -33,8 +33,9 @@ class ConnectionManager:
         self._connections: Set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
+    async def connect(self, ws: WebSocket, *, accepted: bool = False) -> None:
+        if not accepted:
+            await ws.accept()
         async with self._lock:
             self._connections.add(ws)
         log.info(f"WS client connected (total={len(self._connections)})")

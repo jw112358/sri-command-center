@@ -104,6 +104,22 @@ def verify_operator_session(token: str) -> OperatorPrincipal:
     )
 
 
+def authenticate_operator_token(token: str) -> OperatorPrincipal:
+    """Validate either the server token or a short-lived Jeff-only session."""
+    if settings.legal_api_token and secrets.compare_digest(
+        token,
+        settings.legal_api_token,
+    ):
+        return OperatorPrincipal(
+            subject="server-token",
+            email=settings.legal_operator_email.lower(),
+            expires_at=2**31 - 1,
+        )
+    if google_operator_auth_enabled():
+        return verify_operator_session(token)
+    raise ValueError("Operator authentication is not configured")
+
+
 def principal_expires_at(principal: OperatorPrincipal) -> str:
     return datetime.fromtimestamp(principal.expires_at, tz=timezone.utc).isoformat()
 

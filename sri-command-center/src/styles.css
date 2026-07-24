@@ -398,6 +398,72 @@ html, body {
 
 /* ─── Registry cards ─────────────────────────────────────────────────────── */
 .registry-list { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+
+.cc-control-state {
+  margin: 10px 10px 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-deep);
+  display: grid;
+  gap: 4px;
+}
+.cc-control-state strong {
+  color: var(--gold);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+}
+.cc-control-state span {
+  color: var(--muted);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+.cc-control-state.ready {
+  border-color: var(--gold-dim);
+  box-shadow: inset 2px 0 0 var(--gold);
+}
+.cc-control-state.readonly {
+  box-shadow: inset 2px 0 0 var(--muted-2);
+}
+.cc-command-notice {
+  margin: 7px 10px 0;
+  color: var(--gold);
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  line-height: 1.4;
+}
+.cc-private-empty {
+  min-height: 94px;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 18px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  text-align: center;
+}
+.cc-private-empty small {
+  max-width: 360px;
+  color: var(--muted-2);
+  font-size: 8px;
+  letter-spacing: .7px;
+  line-height: 1.6;
+}
+.cc-private-empty.graph-empty {
+  height: 100%;
+  min-height: 220px;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+  box-shadow: none;
+}
+.btn:disabled:hover {
+  border-color: var(--border);
+  color: var(--muted);
+  box-shadow: none;
+  transform: none;
+}
 .os-card {
   border: 1px solid var(--border-soft); border-radius: 4px; padding: 10px 12px;
   background: rgba(255,215,0,.025); transition: border-color .2s, box-shadow .2s;
