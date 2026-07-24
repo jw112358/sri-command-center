@@ -148,6 +148,34 @@ export interface LegalDashboardState {
   connectors: LegalConnectorStatus[];
 }
 
+export interface LegalAuthConfig {
+  enabled: boolean;
+  provider: 'google_workspace';
+  clientId: string;
+  sessionTtlSeconds: number;
+  manualIntakeEnabled: boolean;
+}
+
+export interface LegalOperatorSession {
+  accessToken: string;
+  email: string;
+  expiresAt: string;
+}
+
+export interface LegalSessionStatus {
+  authenticated: true;
+  email: string;
+  expiresAt: string;
+}
+
+export interface LegalIntakeReceipt {
+  eventId: string;
+  matter: LegalMatterSummary;
+  duplicate: boolean;
+  revisionMatched: boolean;
+  acknowledgementStatus: 'draft_pending_approval';
+}
+
 // Layout preference
 export type LayoutDir = 'classic' | 'focus' | 'graph';
 

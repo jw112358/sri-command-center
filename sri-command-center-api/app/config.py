@@ -33,8 +33,16 @@ class Settings(BaseSettings):
     # Legal Agent OS
     legal_enabled: bool = True
     legal_state_db: str = "./data/legal-os-state.db"
+    legal_state_persistent: bool = False
     legal_max_active_matters: int = 4
     legal_api_token: str = ""
+    legal_google_client_id: str = ""
+    legal_google_workspace_domain: str = "sri-intel.com"
+    legal_session_secret: str = ""
+    legal_session_ttl_seconds: int = 1800
+    legal_manual_intake_enabled: bool = False
+    legal_google_user_token_json: str = ""
+    legal_google_allow_adc: bool = False
     legal_gmail_enabled: bool = False
     legal_gmail_shadow_mode: bool = True
     legal_gmail_poll_interval: int = 60

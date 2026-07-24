@@ -1,6 +1,21 @@
-import { useEffect, useState } from 'react';
-import { getLegalDashboard } from '../api/client';
-import type { LegalConnectorStatus, LegalDashboardState } from '../types';
+import { useEffect, useRef, useState } from 'react';
+import {
+  clearLegalOperatorSession,
+  getLegalAuthConfig,
+  getLegalDashboard,
+  getLegalOperatorSession,
+  pauseLegalOS,
+  resumeLegalOS,
+  signInLegalOperator,
+  submitLegalIntake,
+} from '../api/client';
+import type {
+  LegalAuthConfig,
+  LegalConnectorStatus,
+  LegalDashboardState,
+  LegalRequestType,
+  LegalSessionStatus,
+} from '../types';
 
 type LegalView = 'overview' | 'matters' | 'intake' | 'review';
 
@@ -27,10 +42,50 @@ const CONNECTORS: LegalConnectorStatus[] = [
   { name: 'AUTOMATION', detail: 'Scanner + matter runner', status: 'STAGED' },
 ] as const;
 
+let googleIdentityPromise: Promise<void> | null = null;
+
+function loadGoogleIdentity(): Promise<void> {
+  if (window.google?.accounts.id) return Promise.resolve();
+  if (googleIdentityPromise) return googleIdentityPromise;
+  googleIdentityPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]',
+    );
+    const script = existing ?? document.createElement('script');
+    const onReady = () => window.google?.accounts.id
+      ? resolve()
+      : reject(new Error('Google Identity Services did not initialize'));
+    script.addEventListener('load', onReady, { once: true });
+    script.addEventListener('error', () => reject(new Error('Google sign-in failed to load')), {
+      once: true,
+    });
+    if (!existing) {
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+  });
+  return googleIdentityPromise;
+}
+
 export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [view, setView] = useState<LegalView>('overview');
-  const [requestType, setRequestType] = useState('NEW MATTER');
+  const [requestType, setRequestType] = useState<LegalRequestType>('new_matter');
+  const [practiceLane, setPracticeLane] = useState<'civil' | 'appeal'>('civil');
+  const [requestBody, setRequestBody] = useState('');
   const [dashboard, setDashboard] = useState<LegalDashboardState | null>(null);
+  const [authConfig, setAuthConfig] = useState<LegalAuthConfig | null>(null);
+  const [operatorSession, setOperatorSession] = useState<LegalSessionStatus | null>(null);
+  const [operatorBusy, setOperatorBusy] = useState(false);
+  const [operatorMessage, setOperatorMessage] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  const refreshDashboard = () => {
+    getLegalDashboard().then(state => {
+      if (state) setDashboard(state);
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +102,103 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([getLegalAuthConfig(), getLegalOperatorSession()]).then(
+      ([config, session]) => {
+        if (!mounted) return;
+        setAuthConfig(config);
+        setOperatorSession(session);
+      },
+    );
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!authConfig?.enabled || operatorSession || !googleButtonRef.current) return;
+    let active = true;
+    loadGoogleIdentity()
+      .then(() => {
+        if (!active || !window.google || !googleButtonRef.current) return;
+        googleButtonRef.current.replaceChildren();
+        window.google.accounts.id.initialize({
+          client_id: authConfig.clientId,
+          hd: 'sri-intel.com',
+          callback: async response => {
+            setOperatorBusy(true);
+            setOperatorMessage('');
+            try {
+              await signInLegalOperator(response.credential);
+              const session = await getLegalOperatorSession();
+              setOperatorSession(session);
+              setOperatorMessage('Jeff-only controls unlocked for this browser session.');
+            } catch (error) {
+              setOperatorMessage(error instanceof Error ? error.message : 'Google sign-in failed.');
+            } finally {
+              setOperatorBusy(false);
+            }
+          },
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'outline',
+          size: 'medium',
+          shape: 'rectangular',
+          text: 'signin_with',
+          width: 220,
+        });
+      })
+      .catch(error => {
+        if (active) {
+          setOperatorMessage(error instanceof Error ? error.message : 'Google sign-in failed.');
+        }
+      });
+    return () => { active = false; };
+  }, [authConfig, operatorSession]);
+
+  const handlePause = async () => {
+    if (!operatorSession) return;
+    setOperatorBusy(true);
+    setOperatorMessage('');
+    try {
+      const next = dashboard?.paused ? await resumeLegalOS() : await pauseLegalOS();
+      setDashboard(current => current ? { ...current, paused: next.paused } : current);
+      setOperatorMessage(next.paused ? 'New pipeline work is paused.' : 'Pipeline intake is resumed.');
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'Control request failed.');
+    } finally {
+      setOperatorBusy(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    clearLegalOperatorSession();
+    window.google?.accounts.id.disableAutoSelect();
+    setOperatorSession(null);
+    setOperatorMessage('Operator session closed.');
+  };
+
+  const handleManualIntake = async () => {
+    if (!operatorSession || !authConfig?.manualIntakeEnabled || !requestBody.trim()) return;
+    setOperatorBusy(true);
+    setOperatorMessage('');
+    try {
+      const receipt = await submitLegalIntake({
+        requestType,
+        practiceLane,
+        body: requestBody.trim(),
+      });
+      setRequestBody('');
+      refreshDashboard();
+      setOperatorMessage(
+        `${receipt.matter.matterId} received. Acknowledgement remains pending approval.`,
+      );
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'Manual intake failed.');
+    } finally {
+      setOperatorBusy(false);
+    }
+  };
 
   const activeCount = dashboard?.activeCount ?? 0;
   const capacity = dashboard?.capacity ?? 4;
@@ -74,6 +226,27 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             {apiConnected ? 'PLATFORM CONNECTED' : 'LIVE MATTER FEED STAGED'}
           </span>
         </div>
+      </div>
+
+      <div className="laos-auth-strip">
+        <span>
+          <strong>OPERATOR ACCESS</strong>
+          <small>
+            {operatorSession
+              ? `${operatorSession.email} · session expires ${new Date(operatorSession.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+              : authConfig?.enabled
+                ? 'Sign in with the authorized SRI Google Workspace account.'
+                : 'Google Workspace authentication is staged for configuration.'}
+          </small>
+        </span>
+        {operatorSession ? (
+          <button className="btn" type="button" onClick={handleSignOut}>SIGN OUT</button>
+        ) : authConfig?.enabled ? (
+          <div className="laos-google-button" ref={googleButtonRef} aria-busy={operatorBusy}></div>
+        ) : (
+          <em>SETUP REQUIRED</em>
+        )}
+        {operatorMessage && <p>{operatorMessage}</p>}
       </div>
 
       <nav className="laos-nav" aria-label="Legal Agent OS sections">
@@ -173,7 +346,14 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
               </div>
               <div className="laos-stop">
                 <span><strong>EMERGENCY PAUSE</strong><small>Stops new pipeline work.</small></span>
-                <button className="btn danger" disabled type="button">AVAILABLE WITH RUNNER</button>
+                <button
+                  className="btn danger"
+                  disabled={!operatorSession || operatorBusy}
+                  onClick={handlePause}
+                  type="button"
+                >
+                  {dashboard?.paused ? 'RESUME PIPELINE' : 'PAUSE NEW WORK'}
+                </button>
               </div>
             </article>
           </div>
@@ -227,20 +407,55 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             <div className="laos-form-body">
               <label>
                 REQUEST TYPE
-                <select value={requestType} onChange={e => setRequestType(e.target.value)}>
-                  <option>NEW MATTER</option>
-                  <option>REVISION REQUEST</option>
-                  <option>STRATEGY MEMO</option>
-                  <option>LEGAL RESEARCH</option>
+                <select
+                  value={requestType}
+                  onChange={e => setRequestType(e.target.value as LegalRequestType)}
+                >
+                  <option value="new_matter">NEW MATTER</option>
+                  <option value="revision">REVISION REQUEST</option>
+                  <option value="strategy_memo">STRATEGY MEMO</option>
+                  <option value="standalone_research">LEGAL RESEARCH</option>
+                </select>
+              </label>
+              <label>
+                PRACTICE LANE
+                <select
+                  value={practiceLane}
+                  onChange={e => setPracticeLane(e.target.value as 'civil' | 'appeal')}
+                >
+                  <option value="civil">SC CIVIL</option>
+                  <option value="appeal">SC APPEAL</option>
                 </select>
               </label>
               <label>
                 MATTER / REQUEST
-                <textarea placeholder="Identify the parties, request, known deadlines, objectives, and any workflow notes…" />
+                <textarea
+                  value={requestBody}
+                  onChange={e => setRequestBody(e.target.value)}
+                  placeholder="Identify the parties, request, known deadlines, objectives, and any workflow notes…"
+                />
               </label>
               <div className="laos-form-action">
-                <small>Saves to Drive and begins validation when the automation runner is connected.</small>
-                <button className="btn solid" disabled type="button">SUBMIT INTAKE · STAGED</button>
+                <small>
+                  {!operatorSession
+                    ? 'Jeff-only Google sign-in is required.'
+                    : !authConfig?.manualIntakeEnabled
+                      ? 'Persistent state and Drive-first intake must be enabled before submission.'
+                      : 'Creates a controlled intake event; no external action occurs.'}
+                </small>
+                <button
+                  className="btn solid"
+                  disabled={
+                    !operatorSession
+                    || !authConfig?.manualIntakeEnabled
+                    || !requestBody.trim()
+                    || operatorBusy
+                  }
+                  onClick={handleManualIntake}
+                  type="button"
+                >
+                  {authConfig?.manualIntakeEnabled ? 'SUBMIT CONTROLLED INTAKE' : 'SUBMIT INTAKE · STAGED'}
+                </button>
               </div>
             </div>
           </article>

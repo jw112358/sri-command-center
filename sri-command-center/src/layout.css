@@ -270,6 +270,29 @@
   justify-content: flex-end;
 }
 
+.laos-auth-strip {
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  background: rgba(9, 18, 31, .82);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 8px 12px;
+}
+.laos-auth-strip > span { display: flex; flex-direction: column; gap: 3px; }
+.laos-auth-strip > span strong { color: var(--gold); font-size: 9px; letter-spacing: 1.2px; }
+.laos-auth-strip > span small { color: var(--muted); font-size: 8.5px; }
+.laos-auth-strip > em { color: var(--muted-2); font-size: 8px; font-style: normal; letter-spacing: 1px; }
+.laos-auth-strip > p {
+  grid-column: 1 / -1;
+  color: var(--gold-dim);
+  font-size: 8.5px;
+  margin: -2px 0 1px;
+}
+.laos-google-button { min-height: 32px; min-width: 220px; }
+
 .laos-nav {
   display: flex;
   align-items: center;
@@ -445,7 +468,7 @@
 }
 .laos-notice-policy strong { color: var(--gold-dim); font-size: 8.5px; }
 
-.laos-form-body { padding: 12px; display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+.laos-form-body { padding: 12px; display: grid; grid-template-columns: 135px 135px 1fr; gap: 10px; }
 .laos-form-body label {
   color: var(--muted-2);
   font-size: 8.5px;
@@ -525,6 +548,8 @@
   .laos { padding: 10px; }
   .laos-hero { align-items: flex-start; flex-direction: column; }
   .laos-hero-status { justify-content: flex-start; }
+  .laos-auth-strip { grid-template-columns: 1fr; align-items: start; }
+  .laos-auth-strip > p { grid-column: 1; }
   .laos-nav { overflow-x: auto; }
   .laos-nav button { white-space: nowrap; }
   .laos-metrics { grid-template-columns: 1fr; }
