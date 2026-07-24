@@ -8,7 +8,7 @@
 
 import type {
   OSPlugin, Agent, LogLine, Project, Note, GraphData,
-  SystemEvent, SystemHealth,
+  SystemEvent, SystemHealth, LegalDashboardState,
 } from '../types';
 import * as mock from '../mock/data';
 
@@ -138,6 +138,15 @@ export async function getEvents(): Promise<SystemEvent[]> {
 export async function getHealth(): Promise<SystemHealth> {
   if (!await isApiReachable()) return { status: 'NOMINAL', faults: 0, latencyMs: 0 };
   return apiFetch<SystemHealth>('/api/health');
+}
+
+export async function getLegalDashboard(): Promise<LegalDashboardState | null> {
+  if (!await isApiReachable()) return null;
+  try {
+    return await apiFetch<LegalDashboardState>('/api/legal/dashboard');
+  } catch {
+    return null;
+  }
 }
 
 export async function launchOS(id: string, task?: string) {

@@ -297,6 +297,14 @@ html, body {
   border-radius: 2px;
 }
 
+@media (max-width: 1280px) {
+  .app-header { gap: 12px; padding-inline: 12px; }
+  .logo-sub { display: none; }
+  .tab-nav { gap: 0; margin-left: 0; }
+  .tab-btn { padding-inline: 10px; font-size: 10px; letter-spacing: 1.2px; }
+  .sys-health { display: none; }
+}
+
 /* Header right */
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
 .clock { text-align: right; line-height: 1.3; }

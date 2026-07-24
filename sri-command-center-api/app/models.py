@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import List, Literal, Optional
+from pydantic import BaseModel, Field
 
 
 # ── Enumerations ──────────────────────────────────────────────────────────────
@@ -167,3 +167,63 @@ class PatchNoteRequest(BaseModel):
 class AddGraphLinkRequest(BaseModel):
     source: str
     target: str
+
+
+# ── Legal Agent OS ───────────────────────────────────────────────────────────
+
+LegalRequestType = Literal[
+    "new_matter", "revision", "strategy_memo", "standalone_research", "unknown"
+]
+LegalMatterStatus = Literal[
+    "received", "validating", "needs_operator", "conflict_review", "queued",
+    "researching", "drafting", "quality_review", "pending_approval", "approved",
+    "delivering", "revision_requested", "blocked", "closed",
+]
+
+
+class LegalIntakeRequest(BaseModel):
+    channel: Literal["gmail", "master_builder"] = "master_builder"
+    requestType: LegalRequestType = "unknown"
+    sourceId: Optional[str] = None
+    threadId: Optional[str] = None
+    sender: Optional[str] = None
+    subject: str = Field(default="", max_length=500)
+    body: str = Field(min_length=1, max_length=100_000)
+    operatorNotes: str = Field(default="", max_length=20_000)
+    practiceLane: Literal["civil", "appeal"] = "civil"
+
+
+class LegalMatterSummary(BaseModel):
+    matterId: str
+    displayName: str
+    requestType: LegalRequestType
+    practiceLane: Literal["civil", "appeal"]
+    status: LegalMatterStatus
+    version: int
+    sourceChannel: Literal["gmail", "master_builder"]
+    createdAt: str
+    updatedAt: str
+
+
+class LegalIntakeReceipt(BaseModel):
+    eventId: str
+    matter: LegalMatterSummary
+    duplicate: bool = False
+    revisionMatched: bool = False
+    acknowledgementStatus: Literal["draft_pending_approval"] = "draft_pending_approval"
+
+
+class LegalConnectorStatus(BaseModel):
+    name: str
+    detail: str
+    status: Literal["READY", "STAGED", "BLOCKED"]
+
+
+class LegalDashboardState(BaseModel):
+    activeCount: int
+    capacity: int
+    awaitingApproval: int
+    upcomingDeadlines: int
+    paused: bool
+    matters: List[LegalMatterSummary]
+    connectors: List[LegalConnectorStatus]
