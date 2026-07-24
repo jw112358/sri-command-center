@@ -11,7 +11,6 @@ import {
 } from '../api/client';
 import type {
   LegalAuthConfig,
-  LegalConnectorStatus,
   LegalDashboardState,
   LegalRequestType,
   LegalSessionStatus,
@@ -31,15 +30,6 @@ const WORKFLOW = [
   { number: '05', label: 'QUALITY', detail: 'Citations + risks', state: 'next' },
   { number: '06', label: 'APPROVE', detail: 'Jeff exclusively', state: 'gate' },
   { number: '07', label: 'DELIVER', detail: 'External action', state: 'gate' },
-] as const;
-
-const CONNECTORS: LegalConnectorStatus[] = [
-  { name: 'GMAIL', detail: 'LegalOS/Intake', status: 'READY' },
-  { name: 'DRIVE', detail: 'Matter system of record', status: 'READY' },
-  { name: 'CALENDAR', detail: 'Tentative deadlines', status: 'READY' },
-  { name: 'MIDPAGE', detail: 'Research + cite-check', status: 'READY' },
-  { name: 'DESCRYBE', detail: 'Secondary legal research', status: 'READY' },
-  { name: 'AUTOMATION', detail: 'Scanner + matter runner', status: 'STAGED' },
 ] as const;
 
 let googleIdentityPromise: Promise<void> | null = null;
@@ -205,7 +195,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const awaitingApproval = dashboard?.awaitingApproval ?? 0;
   const upcomingDeadlines = dashboard?.upcomingDeadlines ?? 0;
   const matters = dashboard?.matters ?? [];
-  const connectors = dashboard?.connectors ?? CONNECTORS;
+  const connectors = dashboard?.connectors ?? [];
   const readyConnectors = connectors.filter(connector => connector.status === 'READY').length;
 
   return (
@@ -220,10 +210,13 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
           </p>
         </div>
         <div className="laos-hero-status">
-          <span className="badge ACTIVE"><span className="bd"></span>CONTROL LAYER READY</span>
+          <span className={'badge ' + (operatorSession ? 'ACTIVE' : 'IDLE')}>
+            <span className="bd"></span>
+            {operatorSession ? 'OPERATOR CONTROLS UNLOCKED' : 'OPERATOR CONTROLS LOCKED'}
+          </span>
           <span className={'badge ' + (apiConnected ? 'ACTIVE' : 'IDLE')}>
             <span className="bd"></span>
-            {apiConnected ? 'PLATFORM CONNECTED' : 'LIVE MATTER FEED STAGED'}
+            {apiConnected ? 'API CONNECTED' : 'API OFFLINE'}
           </span>
         </div>
       </div>
