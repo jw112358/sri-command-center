@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type {
   Agent,
+  DashboardCapabilities,
   GraphNode,
   OSPlugin,
   GraphData,
@@ -12,14 +13,16 @@ import type {
 import {
   getOSPlugins, getAgents, getAgentLog,
   pauseAgent, stopAgent, restartAgent, messageAgent,
-  getGraph, getLegalAssignments, launchOS, connectWS, markNodeComplete,
+  getDashboardCapabilities, getGraph, getLegalAssignments, launchOS, connectWS, markNodeComplete,
 } from '../api/client';
-import {
-  RUNNING_AGENTS as MOCK_AGENTS,
-  OS_REGISTRY as MOCK_OS,
-  GRAPH_DATA as MOCK_GRAPH,
-} from '../mock/data';
 import { ProjectGraph } from './Graph';
+
+const EMPTY_CAPABILITIES: DashboardCapabilities = {
+  operatorAuthConfigured: false,
+  driveReadConnected: false,
+  dashboardPersistenceEnabled: false,
+  commandDispatchEnabled: false,
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,12 +97,13 @@ interface InspectorProps {
   onRestart: (id: string) => void;
   onMarkComplete: (nodeId: string) => void;
   onViewLog: (agent: Agent) => void;
+  controlsEnabled: boolean;
 }
 
 function Inspector({
   selection, agentsById, osById, elapsed,
   onInteract, interactLog, onPause, onStop, onRestart,
-  onMarkComplete, onViewLog,
+  onMarkComplete, onViewLog, controlsEnabled,
 }: InspectorProps) {
   const [msg, setMsg] = useState('');
 
@@ -140,7 +144,14 @@ function Inspector({
             // If this node has an agent, select it and scroll to log
             if (n.agentId && agentsById[n.agentId]) onViewLog(agentsById[n.agentId]);
           }}>≣ VIEW LOG</button>
-          <button className="btn sm" onClick={() => onMarkComplete(n.id)}>✓ MARK COMPLETE</button>
+          <button
+            className="btn sm"
+            disabled={!controlsEnabled}
+            title={controlsEnabled ? 'Mark this node complete' : 'Command adapter is not connected'}
+            onClick={() => onMarkComplete(n.id)}
+          >
+            ✓ MARK COMPLETE
+          </button>
         </div>
       </div>
     );
@@ -201,20 +212,21 @@ function Inspector({
       <div className="divider"></div>
       <div className="insp-actions">
         <button className="btn sm" onClick={() => onViewLog(a)}>≣ VIEW LOG</button>
-        <button className="btn sm" onClick={() => onPause(a.id)}>❚❚ PAUSE</button>
-        <button className="btn sm danger" onClick={() => onStop(a.id)}>■ STOP</button>
-        <button className="btn sm" onClick={() => onRestart(a.id)}>⟲ RESTART</button>
+        <button className="btn sm" disabled={!controlsEnabled} onClick={() => onPause(a.id)}>❚❚ PAUSE</button>
+        <button className="btn sm danger" disabled={!controlsEnabled} onClick={() => onStop(a.id)}>■ STOP</button>
+        <button className="btn sm" disabled={!controlsEnabled} onClick={() => onRestart(a.id)}>⟲ RESTART</button>
       </div>
       <div className="field">
         <div className="flabel">INTERACT — SEND TO RUNNING SESSION</div>
         <div className="interact">
           <input
             value={msg}
+            disabled={!controlsEnabled}
             onChange={e => setMsg(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
             placeholder={`› message ${a.name} …`}
           />
-          <button className="btn solid sm" onClick={send}>SEND</button>
+          <button className="btn solid sm" disabled={!controlsEnabled} onClick={send}>SEND</button>
         </div>
       </div>
     </div>
@@ -227,9 +239,10 @@ interface OSRegistryProps {
   plugins: OSPlugin[];
   selAgent: Agent | null;
   onLaunch: (id: string) => void;
+  controlsEnabled: boolean;
 }
 
-function OSRegistry({ plugins, selAgent, onLaunch }: OSRegistryProps) {
+function OSRegistry({ plugins, selAgent, onLaunch, controlsEnabled }: OSRegistryProps) {
   return (
     <>
       {plugins.map(os => (
@@ -242,8 +255,21 @@ function OSRegistry({ plugins, selAgent, onLaunch }: OSRegistryProps) {
             {os.agents > 0 ? `${os.agents} AGENT${os.agents > 1 ? 'S' : ''} RUNNING` : 'NO ACTIVE AGENTS'}
           </div>
           <div className="actions">
-            <button className="btn sm" onClick={() => onLaunch(os.id)}>▶ LAUNCH</button>
-            <button className="btn sm">⚙ CONFIGURE</button>
+            <button
+              className="btn sm"
+              disabled={!controlsEnabled}
+              title={controlsEnabled ? 'Launch this OS' : 'Command adapter is not connected'}
+              onClick={() => onLaunch(os.id)}
+            >
+              ▶ LAUNCH
+            </button>
+            <button
+              className="btn sm"
+              disabled
+              title="Configuration adapter is not connected"
+            >
+              ⚙ CONFIGURE
+            </button>
           </div>
         </div>
       ))}
@@ -305,17 +331,18 @@ export interface CommandCenterProps {
 
 export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet }: CommandCenterProps) {
   // ── Live data state ──────────────────────────────────────────────────────
-  const [agents, setAgents]   = useState<Agent[]>(MOCK_AGENTS);
-  const [osPlugins, setOS]    = useState<OSPlugin[]>(MOCK_OS);
-  const [graphData, setGraph] = useState<GraphData>(MOCK_GRAPH);
+  const [agents, setAgents]   = useState<Agent[]>([]);
+  const [osPlugins, setOS]    = useState<OSPlugin[]>([]);
+  const [graphData, setGraph] = useState<GraphData>({ nodes: [], links: [] });
   const [legalAssignments, setLegalAssignments] = useState<LegalAssignmentSummary[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
+  const [capabilities, setCapabilities] = useState<DashboardCapabilities>(EMPTY_CAPABILITIES);
+  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'locked'>('loading');
+  const [commandNotice, setCommandNotice] = useState('');
 
   // ── UI state ─────────────────────────────────────────────────────────────
-  const [selection, setSelection] = useState<Selection>({ type: 'agent', agent: MOCK_AGENTS[0] });
-  const [elapsed, setElapsed]     = useState<Record<string, number>>(() =>
-    Object.fromEntries(MOCK_AGENTS.map(a => [a.id, a.elapsed ?? 0]))
-  );
+  const [selection, setSelection] = useState<Selection>({ type: 'none' });
+  const [elapsed, setElapsed]     = useState<Record<string, number>>({});
   const [interactLog, setInteractLog] = useState<Record<string, string[]>>({});
 
   const agentsById = useMemo(
@@ -337,15 +364,40 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
   // ── Initial data load ────────────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
-    Promise.all([getAgents(), getOSPlugins(), getGraph(), getLegalAssignments()]).then(([ag, os, gd, legal]) => {
+    Promise.allSettled([
+      getAgents(),
+      getOSPlugins(),
+      getGraph(),
+      getLegalAssignments(),
+      getDashboardCapabilities(),
+    ]).then(([agentResult, osResult, graphResult, legalResult, capabilityResult]) => {
       if (!mounted) return;
-      setAgents(ag);
-      setOS(os);
-      setGraph(gd);
-      setLegalAssignments(legal);
-      setElapsed(Object.fromEntries(ag.map(a => [a.id, a.elapsed ?? 0])));
-      if (ag.length > 0) setSelection({ type: 'agent', agent: ag[0] });
-    }).catch(() => { /* keep mock data */ });
+      const nextAgents = agentResult.status === 'fulfilled' ? agentResult.value : [];
+      setAgents(nextAgents);
+      setOS(osResult.status === 'fulfilled' ? osResult.value : []);
+      setGraph(
+        graphResult.status === 'fulfilled'
+          ? graphResult.value
+          : { nodes: [], links: [] },
+      );
+      setLegalAssignments(legalResult.status === 'fulfilled' ? legalResult.value : []);
+      setCapabilities(
+        capabilityResult.status === 'fulfilled'
+          ? capabilityResult.value
+          : EMPTY_CAPABILITIES,
+      );
+      setElapsed(Object.fromEntries(nextAgents.map(a => [a.id, a.elapsed ?? 0])));
+      setSelection(
+        nextAgents.length > 0
+          ? { type: 'agent', agent: nextAgents[0] }
+          : { type: 'none' },
+      );
+      setDataStatus(
+        agentResult.status === 'fulfilled' && graphResult.status === 'fulfilled'
+          ? 'live'
+          : 'locked',
+      );
+    });
     return () => { mounted = false; };
   }, []);
 
@@ -381,8 +433,15 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
       const type = msg.type as string;
 
       if (type === 'agent.log') {
-        const agentId = msg.agent_id as string;
-        const line    = msg.line as string;
+        const payload = msg.line;
+        const agentId =
+          typeof payload === 'object' && payload
+            ? (payload as Record<string, unknown>).agentId as string
+            : msg.agent_id as string;
+        const line =
+          typeof payload === 'object' && payload
+            ? (payload as Record<string, unknown>).text as string
+            : payload as string;
         if (selAgent && agentId === selAgent.id) {
           setLogLines(prev => [...prev, line].slice(-80));
         }
@@ -395,14 +454,15 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
           setSelection({ type: 'agent', agent: updated });
         }
       } else if (type === 'agent.stopped') {
-        const agentId = msg.agent_id as string;
-        setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: 'COMPLETE' } : a));
+        const agentId = (msg.agentId ?? msg.agent_id) as string;
+        setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: 'STOPPED' } : a));
       } else if (type === 'project.updated') {
         // Graph data may have changed — refresh
         getGraph().then(gd => setGraph(gd)).catch(() => {});
       } else if (type === 'graph.node.updated') {
-        const nodeId = msg.node_id as string;
-        const status = msg.status as string;
+        const node = msg.node as GraphNode | undefined;
+        const nodeId = node?.id ?? msg.node_id as string;
+        const status = node?.status ?? msg.status as string;
         if (nodeId && status) {
           setGraph(prev => ({
             ...prev,
@@ -438,30 +498,71 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
     }
   }, [agentsById]);
 
-  const onInteract = useCallback((id: string, m: string) => {
-    setInteractLog(l => ({ ...l, [id]: [...(l[id] || []), '› ' + m] }));
-    setLogLines(prev => [...prev, '‹ operator: ' + m, '→ acknowledged · adjusting plan …']);
-    messageAgent(id, m).catch(() => {});
+  const commandError = useCallback((reason: unknown) => {
+    const text = reason instanceof Error ? reason.message : '';
+    if (/authorization|authentication|session expired/i.test(text)) {
+      return 'SIGN IN ON LEGAL AGENT OS BEFORE USING COMMAND CONTROLS';
+    }
+    if (/adapter|delivered|503/i.test(text)) {
+      return 'COMMAND NOT SENT · OS CONTROL ADAPTER IS NOT CONNECTED';
+    }
+    return 'COMMAND NOT SENT · NO EXTERNAL STATE CHANGED';
   }, []);
 
-  const onPause   = useCallback((id: string) => { pauseAgent(id).catch(() => {}); }, []);
+  const onInteract = useCallback((id: string, m: string) => {
+    setCommandNotice('SENDING OPERATOR MESSAGE…');
+    messageAgent(id, m).then(() => {
+      setInteractLog(l => ({ ...l, [id]: [...(l[id] || []), '✓ ' + m] }));
+      setLogLines(prev => [...prev, '‹ operator: ' + m, '✓ command accepted by connected adapter']);
+      setCommandNotice('MESSAGE ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => {
+      const notice = commandError(reason);
+      setInteractLog(l => ({ ...l, [id]: [...(l[id] || []), '✗ NOT SENT · ' + m] }));
+      setCommandNotice(notice);
+    });
+  }, [commandError]);
+
+  const onPause = useCallback((id: string) => {
+    setCommandNotice('SENDING PAUSE COMMAND…');
+    pauseAgent(id).then(() => {
+      setAgents(prev => prev.map(a => a.id === id ? { ...a, status: 'PAUSED' } : a));
+      setCommandNotice('PAUSE ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => setCommandNotice(commandError(reason)));
+  }, [commandError]);
   const onStop    = useCallback((id: string) => {
-    stopAgent(id).catch(() => {});
-    setAgents(prev => prev.map(a => a.id === id ? { ...a, status: 'COMPLETE' } : a));
-  }, []);
-  const onRestart = useCallback((id: string) => { restartAgent(id).catch(() => {}); }, []);
-  const onLaunch  = useCallback((id: string) => { launchOS(id).catch(() => {}); }, []);
+    setCommandNotice('SENDING STOP COMMAND…');
+    stopAgent(id).then(() => {
+      setAgents(prev => prev.map(a => a.id === id ? { ...a, status: 'STOPPED' } : a));
+      setCommandNotice('STOP ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => setCommandNotice(commandError(reason)));
+  }, [commandError]);
+  const onRestart = useCallback((id: string) => {
+    setCommandNotice('SENDING RESTART COMMAND…');
+    restartAgent(id).then(() => {
+      setAgents(prev => prev.map(a => a.id === id ? { ...a, status: 'RUNNING' } : a));
+      setCommandNotice('RESTART ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => setCommandNotice(commandError(reason)));
+  }, [commandError]);
+  const onLaunch  = useCallback((id: string) => {
+    setCommandNotice('SENDING LAUNCH COMMAND…');
+    launchOS(id).then(() => {
+      setCommandNotice('LAUNCH ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => setCommandNotice(commandError(reason)));
+  }, [commandError]);
 
   // MARK COMPLETE — fires API, optimistically updates graph node, broadcasts via WS
   const onMarkComplete = useCallback((nodeId: string) => {
-    markNodeComplete(nodeId).catch(() => {});
-    setGraph(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(n =>
-        n.id === nodeId ? { ...n, status: 'COMPLETE' as import('../types').NodeStatus } : n
-      ),
-    }));
-  }, []);
+    setCommandNotice('SENDING GRAPH UPDATE…');
+    markNodeComplete(nodeId).then(() => {
+      setGraph(prev => ({
+        ...prev,
+        nodes: prev.nodes.map(n =>
+          n.id === nodeId ? { ...n, status: 'COMPLETE' as import('../types').NodeStatus } : n
+        ),
+      }));
+      setCommandNotice('GRAPH UPDATE ACCEPTED BY CONNECTED ADAPTER');
+    }).catch(reason => setCommandNotice(commandError(reason)));
+  }, [commandError]);
 
   // VIEW LOG — select the agent and scroll the terminal into view
   const logPanelRef = useRef<HTMLDivElement>(null);
@@ -496,8 +597,26 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
           <span className="corner">{osPlugins.length} INSTALLED</span>
         </div>
         <div className="panel-body">
+          <div className={'cc-control-state ' + (capabilities.commandDispatchEnabled ? 'ready' : 'readonly')}>
+            <strong>
+              {capabilities.commandDispatchEnabled
+                ? 'COMMAND ADAPTER CONNECTED'
+                : 'LIVE MONITOR · COMMANDS READ ONLY'}
+            </strong>
+            <span>
+              {capabilities.commandDispatchEnabled
+                ? 'Jeff-only controls are available.'
+                : 'Launch, stop, message, and graph changes unlock only after an OS control adapter is verified.'}
+            </span>
+          </div>
+          {commandNotice && <div className="cc-command-notice">{commandNotice}</div>}
           <div className="registry-list">
-            <OSRegistry plugins={osPlugins} selAgent={selAgent} onLaunch={onLaunch} />
+            <OSRegistry
+              plugins={osPlugins}
+              selAgent={selAgent}
+              onLaunch={onLaunch}
+              controlsEnabled={capabilities.commandDispatchEnabled}
+            />
           </div>
         </div>
       </section>
@@ -546,10 +665,28 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
                   <div className="atask">{a.task}</div>
                   <div className="right">
                     <span className="elapsed">{fmtElapsed(elapsed[a.id] ?? a.elapsed ?? 0)}</span>
-                    <button className="btn sm danger" onClick={e => stopInline(e, a.id)}>■ STOP</button>
+                    <button
+                      className="btn sm danger"
+                      disabled={!capabilities.commandDispatchEnabled}
+                      onClick={e => stopInline(e, a.id)}
+                    >
+                      ■ STOP
+                    </button>
                   </div>
                 </div>
               ))}
+              {agents.length === 0 && (
+                <div className="cc-private-empty">
+                  {dataStatus === 'loading'
+                    ? 'LOADING LIVE AGENT INDEX…'
+                    : 'NO AUTHORIZED AGENT SESSIONS VISIBLE'}
+                  <small>
+                    {dataStatus === 'locked'
+                      ? 'Sign in on Legal Agent OS to load private agent activity.'
+                      : 'New sessions appear here only after a connected OS reports them.'}
+                  </small>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -598,6 +735,7 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
             onRestart={onRestart}
             onMarkComplete={onMarkComplete}
             onViewLog={onViewLog}
+            controlsEnabled={capabilities.commandDispatchEnabled}
           />
         </div>
       </section>
@@ -612,22 +750,30 @@ export function CommandCenter({ layoutDir, tweaks, graphFs, setGraphFs, pulseSet
           </span>
         </div>
         <div className="panel-body" style={{ position: 'relative', overflow: 'hidden' }}>
-          <ProjectGraph
-            data={graphData}
-            selectedId={selectedId}
-            onSelect={handleNode}
-            fullscreen={graphFs}
-            onToggleFs={() => setGraphFs(!graphFs)}
-            tweaks={tweaks}
-            pulseSet={pulseSet}
-            onMarkComplete={onMarkComplete}
-            onViewLog={(node) => {
-              // If the graph node has an agent, view its log; otherwise just select
-              const agent = node.agentId ? agentsById[node.agentId] : null;
-              if (agent) onViewLog(agent);
-              else handleNode(node);
-            }}
-          />
+          {graphData.nodes.length > 0 ? (
+            <ProjectGraph
+              data={graphData}
+              selectedId={selectedId}
+              onSelect={handleNode}
+              fullscreen={graphFs}
+              onToggleFs={() => setGraphFs(!graphFs)}
+              tweaks={tweaks}
+              pulseSet={pulseSet}
+              onMarkComplete={
+                capabilities.commandDispatchEnabled ? onMarkComplete : undefined
+              }
+              onViewLog={(node) => {
+                const agent = node.agentId ? agentsById[node.agentId] : null;
+                if (agent) onViewLog(agent);
+                else handleNode(node);
+              }}
+            />
+          ) : (
+            <div className="cc-private-empty graph-empty">
+              {dataStatus === 'loading' ? 'LOADING PRIVATE PROJECT MAP…' : 'PRIVATE PROJECT MAP LOCKED'}
+              <small>Sign in on Legal Agent OS to load authorized project data.</small>
+            </div>
+          )}
         </div>
       </section>
     </div>

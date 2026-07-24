@@ -1,8 +1,6 @@
 """Sanitized dashboard reads and protected Legal Agent OS controls."""
 from __future__ import annotations
 
-import secrets
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.config import settings
@@ -22,11 +20,11 @@ from app.models import (
 )
 from app.services.legal_auth import (
     OperatorPrincipal,
+    authenticate_operator_token,
     create_operator_session,
     google_operator_auth_enabled,
     principal_expires_at,
     verify_google_credential,
-    verify_operator_session,
 )
 from app.services.legal_intake import get_legal_store
 
@@ -45,19 +43,10 @@ def require_operator(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Operator authentication required")
     token = authorization.removeprefix("Bearer ")
-    if settings.legal_api_token and secrets.compare_digest(
-        token, settings.legal_api_token
-    ):
-        return OperatorPrincipal(
-            subject="server-token",
-            email=settings.legal_operator_email.lower(),
-            expires_at=2**31 - 1,
-        )
-    if google_operator_auth_enabled():
-        try:
-            return verify_operator_session(token)
-        except ValueError:
-            pass
+    try:
+        return authenticate_operator_token(token)
+    except ValueError:
+        pass
     raise HTTPException(status_code=401, detail="Operator authentication required")
 
 
@@ -101,20 +90,32 @@ def session(principal: OperatorPrincipal = Depends(require_operator)):
     )
 
 
-@router.get("/dashboard", response_model=LegalDashboardState)
+@router.get(
+    "/dashboard",
+    response_model=LegalDashboardState,
+    dependencies=[Depends(require_operator)],
+)
 def dashboard():
-    """Public-safe feed: generated IDs, states, counts, and connector health only."""
+    """Jeff-only Legal OS state and connector health."""
     return get_legal_store().dashboard()
 
 
-@router.get("/matters", response_model=list[LegalMatterSummary])
+@router.get(
+    "/matters",
+    response_model=list[LegalMatterSummary],
+    dependencies=[Depends(require_operator)],
+)
 def matters():
     return get_legal_store().list_matters()
 
 
-@router.get("/assignments", response_model=list[LegalAssignmentSummary])
+@router.get(
+    "/assignments",
+    response_model=list[LegalAssignmentSummary],
+    dependencies=[Depends(require_operator)],
+)
 def assignments():
-    """Public-safe assignment feed: generated identifiers and workflow state only."""
+    """Jeff-only assignment activity feed."""
     return get_legal_store().list_assignments()
 
 

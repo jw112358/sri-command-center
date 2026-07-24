@@ -2,13 +2,13 @@
  * api/client.ts — SRI OS Command Center API client
  *
  * All data fetching goes through this module.
- * When the API is unreachable the mock data layer is returned as fallback,
- * so the UI is always usable during local development without a running backend.
+ * Production never substitutes demonstration records for live data. Optional
+ * mock fallbacks are restricted to explicit local development.
  */
 
 import type {
   OSPlugin, Agent, LogLine, Project, Note, Task, SessionBrief, GraphData,
-  SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
+  DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
   LegalSessionStatus,
 } from '../types';
@@ -19,6 +19,9 @@ import * as mock from '../mock/data';
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 const WS_BASE  = API_BASE.replace(/^http/, 'ws');
 const LEGAL_SESSION_KEY = 'sri.legal.operator-session';
+const ALLOW_MOCK_DATA =
+  import.meta.env.DEV
+  && (import.meta.env.VITE_ALLOW_MOCK_DATA as string | undefined) === 'true';
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -84,12 +87,12 @@ async function isApiReachable(): Promise<boolean> {
 // ── API methods with mock fallback ────────────────────────────────────────────
 
 export async function getOSPlugins(): Promise<OSPlugin[]> {
-  if (!await isApiReachable()) return mock.OS_REGISTRY;
+  if (!await isApiReachable()) return ALLOW_MOCK_DATA ? mock.OS_REGISTRY : [];
   return apiFetch<OSPlugin[]>('/api/os');
 }
 
 export async function getAgents(status?: string): Promise<Agent[]> {
-  if (!await isApiReachable()) return mock.RUNNING_AGENTS;
+  if (!await isApiReachable()) return ALLOW_MOCK_DATA ? mock.RUNNING_AGENTS : [];
   const qs = status ? `?status=${status}` : '';
   // Convert ISO startedAt → elapsed seconds for mock-compatibility
   const agents = await apiFetch<Agent[]>(`/api/agents${qs}`);
@@ -97,7 +100,9 @@ export async function getAgents(status?: string): Promise<Agent[]> {
 }
 
 export async function getAgent(id: string): Promise<Agent | null> {
-  if (!await isApiReachable()) return mock.RUNNING_AGENTS.find(a => a.id === id) ?? null;
+  if (!await isApiReachable()) {
+    return ALLOW_MOCK_DATA ? mock.RUNNING_AGENTS.find(a => a.id === id) ?? null : null;
+  }
   try { return normalizeAgent(await apiFetch<Agent>(`/api/agents/${id}`)); }
   catch { return null; }
 }
@@ -119,7 +124,7 @@ export async function messageAgent(id: string, text: string) {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  if (!await isApiReachable()) return mock.PROJECTS;
+  if (!await isApiReachable()) return ALLOW_MOCK_DATA ? mock.PROJECTS : [];
   return apiFetch<Project[]>('/api/projects');
 }
 
@@ -136,26 +141,23 @@ export async function deleteProject(id: string) {
 }
 
 export async function getNotes(): Promise<Note[]> {
-  if (!await isApiReachable()) return mock.NOTES;
+  if (!await isApiReachable()) return ALLOW_MOCK_DATA ? mock.NOTES : [];
   return apiFetch<Note[]>('/api/notes');
 }
 
 export async function getNote(id: string): Promise<Note | null> {
-  if (!await isApiReachable()) return mock.NOTES.find(n => n.id === id) ?? null;
+  if (!await isApiReachable()) {
+    return ALLOW_MOCK_DATA ? mock.NOTES.find(n => n.id === id) ?? null : null;
+  }
   try { return apiFetch<Note>(`/api/notes/${id}`); }
   catch { return null; }
 }
 
 export async function createNote(body: { title?: string; tag?: string; body?: string }) {
-  if (!await isApiReachable()) {
-    const id = 'n' + Date.now();
-    return { id, title: body.title ?? 'Untitled', tag: body.tag ?? 'note', body: body.body ?? '', updatedAt: new Date().toISOString() };
-  }
   return apiFetch<Note>('/api/notes', { method: 'POST', body: JSON.stringify(body) });
 }
 
 export async function patchNote(id: string, patch: Partial<Note>) {
-  if (!await isApiReachable()) return patch as Note;
   return apiFetch<Note>(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
@@ -192,25 +194,39 @@ export async function getSessionBriefs(): Promise<SessionBrief[]> {
 }
 
 export async function getGraph(): Promise<GraphData> {
-  if (!await isApiReachable()) return mock.GRAPH_DATA;
+  if (!await isApiReachable()) {
+    return ALLOW_MOCK_DATA ? mock.GRAPH_DATA : { nodes: [], links: [] };
+  }
   return apiFetch<GraphData>('/api/graph');
 }
 
 export async function getEvents(): Promise<SystemEvent[]> {
   if (!await isApiReachable()) {
-    return mock.MOCK_NOTIFS.map((n, i) => ({
+    return ALLOW_MOCK_DATA ? mock.MOCK_NOTIFS.map((n, i) => ({
       id: String(i),
       severity: n.err ? 'error' : 'info',
       text: n.t,
       ts: new Date().toISOString(),
-    })) as SystemEvent[];
+    })) as SystemEvent[] : [];
   }
   return apiFetch<SystemEvent[]>('/api/events');
 }
 
 export async function getHealth(): Promise<SystemHealth> {
-  if (!await isApiReachable()) return { status: 'NOMINAL', faults: 0, latencyMs: 0 };
+  if (!await isApiReachable()) return { status: 'DEGRADED', faults: 1, latencyMs: 0 };
   return apiFetch<SystemHealth>('/api/health');
+}
+
+export async function getDashboardCapabilities(): Promise<DashboardCapabilities> {
+  if (!await isApiReachable()) {
+    return {
+      operatorAuthConfigured: false,
+      driveReadConnected: false,
+      dashboardPersistenceEnabled: false,
+      commandDispatchEnabled: false,
+    };
+  }
+  return apiFetch<DashboardCapabilities>('/api/capabilities');
 }
 
 export async function getLegalDashboard(): Promise<LegalDashboardState | null> {
@@ -304,11 +320,17 @@ export function connectWS(onMessage: WSHandler): () => void {
 
   const connect = () => {
     if (stopped) return;
+    const accessToken = getStoredLegalAccessToken();
+    if (!accessToken) {
+      retryTimeout = setTimeout(connect, 3_000);
+      return;
+    }
     try {
       ws = new WebSocket(`${WS_BASE}/ws`);
 
       ws.onopen = () => {
-        console.info('[SRI] WebSocket connected');
+        ws?.send(JSON.stringify({ type: 'auth', token: accessToken }));
+        console.info('[SRI] Secure WebSocket connected');
         // Heartbeat
         const hb = setInterval(() => ws?.send(JSON.stringify({ type: 'ping' })), 25_000);
         ws!.addEventListener('close', () => clearInterval(hb));

@@ -14,7 +14,11 @@ from app.services import drive
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
 
-@router.get("", response_model=List[Note])
+@router.get(
+    "",
+    response_model=List[Note],
+    dependencies=[Depends(require_operator)],
+)
 def list_notes():
     drive_notes = {n.id: n for n in drive.get_notes()}
     legal_notes = {n.id: n for n in get_legal_store().list_activity_notes()}
@@ -30,7 +34,11 @@ def list_notes():
     ]
 
 
-@router.get("/{note_id}", response_model=Note)
+@router.get(
+    "/{note_id}",
+    response_model=Note,
+    dependencies=[Depends(require_operator)],
+)
 def get_note(note_id: str):
     try:
         dashboard_note = get_dashboard_store().get_note(note_id)

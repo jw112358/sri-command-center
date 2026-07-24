@@ -179,7 +179,10 @@ export default function App() {
 
     (async () => {
       try {
-        const [evts, hlt] = await Promise.all([getEvents(), getHealth()]);
+        const [evts, hlt] = await Promise.all([
+          getEvents().catch(() => []),
+          getHealth(),
+        ]);
         if (!mounted) return;
         setEvents(evts);
         setHealth(hlt.status ?? 'NOMINAL');
@@ -188,7 +191,7 @@ export default function App() {
       } catch {
         if (!mounted) return;
         setApiConnected(false);
-        setFooterStatus('API OFFLINE · MOCK DATA');
+        setFooterStatus('API OFFLINE · LIVE DATA UNAVAILABLE');
       }
     })();
 
@@ -224,7 +227,7 @@ export default function App() {
         setHealth(hlt.status ?? 'NOMINAL');
         setFooterStatus('CONNECTED · LIVE DATA');
       } catch {
-        setFooterStatus('API OFFLINE · MOCK DATA');
+        setFooterStatus('API OFFLINE · LIVE DATA UNAVAILABLE');
       }
     }, 60_000);
     return () => clearInterval(iv);

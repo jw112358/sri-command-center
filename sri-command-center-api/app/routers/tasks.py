@@ -11,7 +11,11 @@ from app.services.dashboard_state import (
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
-@router.get("", response_model=list[Task])
+@router.get(
+    "",
+    response_model=list[Task],
+    dependencies=[Depends(require_operator)],
+)
 def list_tasks():
     try:
         return get_dashboard_store().list_tasks()

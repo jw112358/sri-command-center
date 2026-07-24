@@ -13,6 +13,8 @@ services:
         sync: false   # secret service-account JSON; share only the SRI Drive root
       - key: DASHBOARD_DRIVE_WRITE_ENABLED
         value: "false" # enable after the service account and Jeff sign-in are verified
+      - key: COMMAND_DISPATCH_ENABLED
+        value: "false" # enable only after an OS runner consumes and acknowledges commands
       - key: DASHBOARD_SESSION_SUMMARIES_FOLDER_ID
         value: 18izBaGlyEQBF8aWaGRajxTRp_oO9ejWk
       - key: LEGAL_GOOGLE_CLIENT_ID

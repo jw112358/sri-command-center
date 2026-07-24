@@ -15,7 +15,11 @@ from app.services.ws_manager import broadcast_project_updated
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
-@router.get("", response_model=List[Project])
+@router.get(
+    "",
+    response_model=List[Project],
+    dependencies=[Depends(require_operator)],
+)
 def list_projects():
     projects = drive.get_projects()
 
