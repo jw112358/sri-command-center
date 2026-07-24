@@ -83,12 +83,17 @@ def _get_drive_service():
         return _drive_service
 
     from googleapiclient.discovery import build
+    scope = (
+        "https://www.googleapis.com/auth/drive"
+        if settings.dashboard_drive_write_enabled
+        else "https://www.googleapis.com/auth/drive.readonly"
+    )
 
     # ── Attempt 1: Application Default Credentials ──────────────────────
     try:
         import google.auth
         creds, _ = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/drive.readonly"]
+            scopes=[scope]
         )
         _drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
         log.info("Google Drive: authenticated via Application Default Credentials")
@@ -96,14 +101,31 @@ def _get_drive_service():
     except Exception as adc_err:
         log.debug(f"ADC not available ({adc_err}); trying service account file …")
 
-    # ── Attempt 2: Service account JSON (optional) ───────────────────────
+    # ── Attempt 2: Service account JSON secret (preferred on Render) ─────
+    if settings.google_service_account_json:
+        try:
+            from google.oauth2 import service_account
+            info = json.loads(settings.google_service_account_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=[scope],
+            )
+            _drive_service = build(
+                "drive", "v3", credentials=creds, cache_discovery=False
+            )
+            log.info("Google Drive: authenticated via service account JSON secret")
+            return _drive_service
+        except Exception as json_err:
+            log.warning("Service account JSON secret could not be loaded: %s", json_err)
+
+    # ── Attempt 3: Service account JSON file (optional) ──────────────────
     sa_file = getattr(settings, "google_service_account_file", None)
     if sa_file and Path(sa_file).exists():
         try:
             from google.oauth2 import service_account
             creds = service_account.Credentials.from_service_account_file(
                 sa_file,
-                scopes=["https://www.googleapis.com/auth/drive.readonly"],
+                scopes=[scope],
             )
             _drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
             log.info("Google Drive: authenticated via service account JSON")
@@ -114,6 +136,11 @@ def _get_drive_service():
     log.warning("Google Drive: no valid credentials found — using mock data fallback")
     _drive_service = None
     return _drive_service
+
+
+def get_drive_service():
+    """Return the configured Drive client without exposing credential details."""
+    return _get_drive_service()
 
 
 # ── Drive file helpers ────────────────────────────────────────────────────────

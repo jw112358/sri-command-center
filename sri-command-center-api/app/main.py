@@ -17,7 +17,17 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agents, events, graph, legal, notes, os, projects
+from app.routers import (
+    agents,
+    events,
+    graph,
+    legal,
+    notes,
+    os,
+    projects,
+    session_briefs,
+    tasks,
+)
 from app.services.legal_intake import get_legal_store
 from app.services.ws_manager import manager, drive_poll_loop
 
@@ -56,6 +66,8 @@ def create_app() -> FastAPI:
     app.include_router(graph.router)
     app.include_router(events.router)
     app.include_router(legal.router)
+    app.include_router(tasks.router)
+    app.include_router(session_briefs.router)
 
     # ── WebSocket ─────────────────────────────────────────────────────────────
     @app.websocket("/ws")

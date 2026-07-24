@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Note } from '../types';
-import { getNotes, getNote, createNote, patchNote } from '../api/client';
-import { NOTES as MOCK_NOTES } from '../mock/data';
-
-// ─── Task type (local, stored in note body as JSON front-matter) ──────────────
-interface Task {
-  id: string;
-  text: string;
-  done: boolean;
-  createdAt: string;   // ISO
-  completedAt?: string; // ISO
-}
+import type { Note, SessionBrief, Task } from '../types';
+import {
+  createNote,
+  createTask,
+  deleteNote,
+  deleteTask,
+  getNote,
+  getNotes,
+  getSessionBriefs,
+  getTasks,
+  patchNote,
+  patchTask,
+} from '../api/client';
 
 // ─── Markdown renderer (inline, no external dep) ──────────────────────────────
 function renderMarkdown(src: string): React.ReactNode[] {
@@ -71,10 +72,6 @@ function nowStamp(): string {
   );
 }
 
-function nowISO(): string {
-  return new Date().toISOString();
-}
-
 function fmtISO(iso: string): string {
   const d = new Date(iso);
   return (
@@ -84,46 +81,60 @@ function fmtISO(iso: string): string {
   );
 }
 
-// ─── Task storage: tasks live in localStorage keyed by session ────────────────
-const TASKS_KEY = 'sri_cc_tasks';
-
-function loadTasks(): Task[] {
-  try { return JSON.parse(localStorage.getItem(TASKS_KEY) ?? '[]'); }
-  catch { return []; }
-}
-
-function saveTasks(tasks: Task[]) {
-  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
-  catch { /* ignore */ }
-}
-
 // ─── TasksPanel ───────────────────────────────────────────────────────────────
 function TasksPanel() {
-  const [tasks, setTasks]   = useState<Task[]>(() => loadTasks());
+  const [tasks, setTasks]   = useState<Task[]>([]);
   const [input, setInput]   = useState('');
   const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
+  const [status, setStatus] = useState<'ready' | 'saving' | 'error'>('ready');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const persist = (next: Task[]) => { setTasks(next); saveTasks(next); };
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => {
+      getTasks().then(items => {
+        if (mounted) setTasks(items);
+      }).catch(() => {
+        if (mounted) setStatus('error');
+      });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 10_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const addTask = () => {
     const text = input.trim();
     if (!text) return;
-    const t: Task = { id: 'tk' + Date.now(), text, done: false, createdAt: nowISO() };
-    persist([t, ...tasks]);
-    setInput('');
-    inputRef.current?.focus();
+    setStatus('saving');
+    createTask(text).then(task => {
+      setTasks(current => [task, ...current]);
+      setInput('');
+      setStatus('ready');
+      inputRef.current?.focus();
+    }).catch(() => setStatus('error'));
   };
 
   const toggle = (id: string) => {
-    persist(tasks.map(t =>
-      t.id === id
-        ? { ...t, done: !t.done, completedAt: !t.done ? nowISO() : undefined }
-        : t
-    ));
+    const task = tasks.find(item => item.id === id);
+    if (!task) return;
+    setStatus('saving');
+    patchTask(id, { done: !task.done }).then(updated => {
+      setTasks(current => current.map(item => item.id === id ? updated : item));
+      setStatus('ready');
+    }).catch(() => setStatus('error'));
   };
 
-  const remove = (id: string) => persist(tasks.filter(t => t.id !== id));
+  const remove = (id: string) => {
+    setStatus('saving');
+    deleteTask(id).then(() => {
+      setTasks(current => current.filter(item => item.id !== id));
+      setStatus('ready');
+    }).catch(() => setStatus('error'));
+  };
 
   const visible = tasks.filter(t =>
     filter === 'all' ? true : filter === 'open' ? !t.done : t.done
@@ -150,6 +161,9 @@ function TasksPanel() {
             </button>
           ))}
         </div>
+        <span className={'nb-save-state ' + status}>
+          {status === 'saving' ? 'SAVING…' : status === 'error' ? 'SIGN IN / STORAGE REQUIRED' : 'DRIVE SYNCED'}
+        </span>
       </div>
 
       {/* Add task input */}
@@ -200,11 +214,130 @@ function TasksPanel() {
   );
 }
 
+// ─── SessionBriefsPanel ──────────────────────────────────────────────────────
+function SessionBriefsPanel() {
+  const [briefs, setBriefs] = useState<SessionBrief[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => {
+      getSessionBriefs().then(items => {
+        if (!mounted) return;
+        setBriefs(items);
+        setSelectedId(current => items.some(item => item.id === current) ? current : items[0]?.id ?? '');
+        setLoading(false);
+      }).catch(() => {
+        if (mounted) setLoading(false);
+      });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = briefs.filter(brief => (
+    !normalizedQuery
+    || brief.project.toLowerCase().includes(normalizedQuery)
+    || brief.title.toLowerCase().includes(normalizedQuery)
+    || brief.summary.toLowerCase().includes(normalizedQuery)
+  ));
+  const selected = visible.find(item => item.id === selectedId) ?? visible[0];
+
+  return (
+    <div className="session-briefs">
+      <section className="panel session-brief-list-panel">
+        <div className="panel-h">
+          <span className="t">SESSION BRIEFS</span>
+          <span className="corner">{briefs.length} INDEXED</span>
+        </div>
+        <div className="session-brief-search">
+          <input
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder="Search projects, builds, or outcomes…"
+          />
+        </div>
+        <div className="session-brief-list">
+          {visible.map(brief => (
+            <button
+              type="button"
+              key={brief.id}
+              className={'session-brief-item' + (selected?.id === brief.id ? ' selected' : '')}
+              onClick={() => setSelectedId(brief.id)}
+            >
+              <strong>{brief.project}</strong>
+              <span>{brief.title}</span>
+              <small>{brief.date} · {brief.surface}</small>
+            </button>
+          ))}
+          {!loading && visible.length === 0 && (
+            <div className="empty">— NO SESSION BRIEFS FOUND —</div>
+          )}
+          {loading && <div className="empty">READING PLATFORM SUMMARIES…</div>}
+        </div>
+      </section>
+
+      <section className="panel session-brief-detail">
+        {selected ? (
+          <>
+            <div className="panel-h">
+              <span className="t">{selected.project.toUpperCase()}</span>
+              <span className="corner">{selected.sessionId}</span>
+            </div>
+            <div className="session-brief-body">
+              <div className="session-brief-meta">
+                <span>{selected.date}</span>
+                <span>{selected.surface}</span>
+                <span>{selected.status.replace(/-/g, ' ')}</span>
+              </div>
+              <h2>{selected.title}</h2>
+              <div className="session-brief-section">
+                <span>CONCISE OUTCOME</span>
+                <p>{selected.summary}</p>
+              </div>
+              {selected.currentState && (
+                <div className="session-brief-section">
+                  <span>CURRENT STATE</span>
+                  <p>{selected.currentState}</p>
+                </div>
+              )}
+              <div className="session-next-start">
+                <span>BEGIN NEXT SESSION HERE</span>
+                <p>{selected.nextStart}</p>
+              </div>
+              <a
+                className="btn solid session-source-link"
+                href={selected.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                OPEN FULL DRIVE SUMMARY ↗
+              </a>
+            </div>
+          </>
+        ) : (
+          <div className="empty session-brief-empty">
+            Session briefs appear when the canonical Platform summary folder is connected.
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // ─── Notebook ─────────────────────────────────────────────────────────────────
 export function Notebook() {
-  const [tab, setTab]         = useState<'notes' | 'tasks'>('notes');
-  const [notes, setNotes]     = useState<Note[]>(MOCK_NOTES.map(n => ({ ...n })));
-  const [selId, setSelId]     = useState(MOCK_NOTES[0]?.id ?? '');
+  const [tab, setTab]         = useState<'notes' | 'tasks' | 'briefs'>('notes');
+  const [notes, setNotes]     = useState<Note[]>([]);
+  const [selId, setSelId]     = useState('');
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sel = notes.find(n => n.id === selId) ?? notes[0];
@@ -214,7 +347,7 @@ export function Notebook() {
     let mounted = true;
     const refresh = () => {
       getNotes().then(ns => {
-        if (!mounted || ns.length === 0) return;
+        if (!mounted) return;
         setNotes(previous => ns.map(note => {
           const existing = previous.find(item => item.id === note.id);
           return {
@@ -223,7 +356,7 @@ export function Notebook() {
             body: note.body ?? existing?.body ?? '',
           };
         }));
-        setSelId(current => ns.some(note => note.id === current) ? current : ns[0].id);
+        setSelId(current => ns.some(note => note.id === current) ? current : ns[0]?.id ?? '');
       }).catch(() => { /* keep current notes */ });
     };
     refresh();
@@ -250,29 +383,42 @@ export function Notebook() {
   // ── Local update + debounced API patch ────────────────────────────────────
   const update = (patch: Partial<Note>) => {
     setNotes(ns => ns.map(n => n.id === selId ? { ...n, ...patch, updated: nowStamp() } : n));
+    setSaveState('saving');
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
-      patchNote(selId, patch).catch(() => {});
+      patchNote(selId, patch)
+        .then(updated => {
+          setNotes(current => current.map(note => note.id === selId ? { ...note, ...updated } : note));
+          setSaveState('saved');
+        })
+        .catch(() => setSaveState('error'));
     }, 500);
   };
 
   // ── New note ──────────────────────────────────────────────────────────────
   const newNote = () => {
     const stamp = nowStamp();
+    setSaveState('saving');
     createNote({ title: 'Untitled', tag: 'note', body: '# Untitled\n\n' })
       .then(created => {
         setNotes(prev => [{ ...created, updated: stamp }, ...prev]);
         setSelId(created.id);
+        setSaveState('saved');
       })
-      .catch(() => {
-        const id = 'n' + Date.now();
-        const note: Note = { id, title: 'Untitled', tag: 'note', updated: stamp, body: '# Untitled\n\n' };
-        setNotes(prev => [note, ...prev]);
-        setSelId(id);
-      });
+      .catch(() => setSaveState('error'));
   };
 
   const readOnlyActivity = sel?.tag === 'legal-os';
+
+  const removeSelectedNote = () => {
+    if (!sel || readOnlyActivity) return;
+    setSaveState('saving');
+    deleteNote(sel.id).then(() => {
+      setNotes(current => current.filter(note => note.id !== sel.id));
+      setSelId(current => current === sel.id ? '' : current);
+      setSaveState('saved');
+    }).catch(() => setSaveState('error'));
+  };
 
   return (
     <div className="nb">
@@ -290,6 +436,12 @@ export function Notebook() {
         >
           ✓ TASKS
         </button>
+        <button
+          className={'nb-tab' + (tab === 'briefs' ? ' active' : '')}
+          onClick={() => setTab('briefs')}
+        >
+          ↻ SESSION BRIEFS
+        </button>
       </div>
 
       {/* ── TASKS tab ────────────────────────────────────────────────────── */}
@@ -298,6 +450,8 @@ export function Notebook() {
           <TasksPanel />
         </div>
       )}
+
+      {tab === 'briefs' && <SessionBriefsPanel />}
 
       {/* ── NOTES tab ────────────────────────────────────────────────────── */}
       {tab === 'notes' && (
@@ -346,7 +500,11 @@ export function Notebook() {
                 <span className="flabel" style={{ color: 'var(--muted-2)', fontSize: 9, letterSpacing: 2 }}>
                   {readOnlyActivity
                     ? 'AUTOMATED · READ ONLY'
-                    : sel.updated ?? (sel.updatedAt ? fmtISO(sel.updatedAt) : '—')}
+                    : saveState === 'saving'
+                      ? 'SAVING TO DRIVE…'
+                      : saveState === 'error'
+                        ? 'SIGN IN / STORAGE REQUIRED'
+                        : 'DRIVE SYNCED'}
                 </span>
                 <input
                   className="nb-tag-input"
@@ -357,6 +515,15 @@ export function Notebook() {
                   readOnly={readOnlyActivity}
                   placeholder="tag"
                 />
+                {!readOnlyActivity && (
+                  <button
+                    type="button"
+                    className="btn sm danger"
+                    onClick={removeSelectedNote}
+                  >
+                    DELETE
+                  </button>
+                )}
               </div>
               <div className="nb-split">
                 <textarea

@@ -7,7 +7,7 @@
  */
 
 import type {
-  OSPlugin, Agent, LogLine, Project, Note, GraphData,
+  OSPlugin, Agent, LogLine, Project, Note, Task, SessionBrief, GraphData,
   SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
   LegalSessionStatus,
@@ -26,7 +26,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  if (path.startsWith('/api/legal/')) {
+  if (path.startsWith('/api/legal/') || (init?.method && init.method !== 'GET')) {
     const accessToken = getStoredLegalAccessToken();
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   }
@@ -42,6 +42,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch { /* response body is optional */ }
     throw new Error(`API ${path} → ${res.status}${detail}`);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -130,6 +131,10 @@ export async function patchProject(id: string, patch: Partial<Project>) {
   return apiFetch<Project>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
+export async function deleteProject(id: string) {
+  return apiFetch<void>(`/api/projects/${id}`, { method: 'DELETE' });
+}
+
 export async function getNotes(): Promise<Note[]> {
   if (!await isApiReachable()) return mock.NOTES;
   return apiFetch<Note[]>('/api/notes');
@@ -152,6 +157,38 @@ export async function createNote(body: { title?: string; tag?: string; body?: st
 export async function patchNote(id: string, patch: Partial<Note>) {
   if (!await isApiReachable()) return patch as Note;
   return apiFetch<Note>(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+export async function deleteNote(id: string) {
+  return apiFetch<void>(`/api/notes/${id}`, { method: 'DELETE' });
+}
+
+export async function getTasks(): Promise<Task[]> {
+  if (!await isApiReachable()) return [];
+  return apiFetch<Task[]>('/api/tasks');
+}
+
+export async function createTask(text: string): Promise<Task> {
+  return apiFetch<Task>('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function patchTask(id: string, patch: Partial<Task>): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  return apiFetch<void>(`/api/tasks/${id}`, { method: 'DELETE' });
+}
+
+export async function getSessionBriefs(): Promise<SessionBrief[]> {
+  if (!await isApiReachable()) return [];
+  return apiFetch<SessionBrief[]>('/api/session-briefs');
 }
 
 export async function getGraph(): Promise<GraphData> {

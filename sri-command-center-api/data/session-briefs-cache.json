@@ -1,0 +1,7 @@
+{
+  "_meta": {
+    "source": "SRI Agent Platform/session-summaries",
+    "purpose": "Empty public fallback. Private session content is loaded only from the authorized Google Drive connection."
+  },
+  "briefs": []
+}

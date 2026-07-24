@@ -1,24 +1,28 @@
 """app/routers/notes.py — Notebook endpoints"""
-import uuid
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 
 from app.models import Note, CreateNoteRequest, PatchNoteRequest
+from app.routers.legal import require_operator
+from app.services.dashboard_state import (
+    DashboardStateUnavailable,
+    get_dashboard_store,
+)
 from app.services.legal_intake import get_legal_store
 from app.services import drive
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
-
-# In-memory note store — Drive is source of truth; new notes written back via signals
-_local_notes: dict = {}  # note_id → Note
 
 
 @router.get("", response_model=List[Note])
 def list_notes():
     drive_notes = {n.id: n for n in drive.get_notes()}
     legal_notes = {n.id: n for n in get_legal_store().list_activity_notes()}
-    merged = {**drive_notes, **_local_notes, **legal_notes}
+    try:
+        dashboard_notes = {n.id: n for n in get_dashboard_store().list_notes()}
+    except DashboardStateUnavailable:
+        dashboard_notes = {}
+    merged = {**drive_notes, **dashboard_notes, **legal_notes}
     # Return without body (per contract)
     return [
         n.model_copy(update={"body": None})
@@ -28,8 +32,12 @@ def list_notes():
 
 @router.get("/{note_id}", response_model=Note)
 def get_note(note_id: str):
-    if note_id in _local_notes:
-        return _local_notes[note_id]
+    try:
+        dashboard_note = get_dashboard_store().get_note(note_id)
+    except DashboardStateUnavailable:
+        dashboard_note = None
+    if dashboard_note:
+        return dashboard_note
     legal_note = get_legal_store().get_activity_note(note_id)
     if legal_note:
         return legal_note
@@ -39,32 +47,59 @@ def get_note(note_id: str):
     return note
 
 
-@router.post("", response_model=Note, status_code=201)
+@router.post(
+    "",
+    response_model=Note,
+    status_code=201,
+    dependencies=[Depends(require_operator)],
+)
 def create_note(body: CreateNoteRequest):
-    note = Note(
-        id=f"n:{uuid.uuid4().hex[:8]}",
-        title=body.title,
-        tag=body.tag,
-        body=body.body,
-        updatedAt=datetime.now(timezone.utc).isoformat(),
-    )
-    _local_notes[note.id] = note
-    drive.write_signal("prod", "note-created", note.model_dump())
-    return note
+    try:
+        return get_dashboard_store().create_note(
+            title=body.title,
+            tag=body.tag,
+            body=body.body,
+        )
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
-@router.patch("/{note_id}", response_model=Note)
+@router.patch(
+    "/{note_id}",
+    response_model=Note,
+    dependencies=[Depends(require_operator)],
+)
 def patch_note(note_id: str, body: PatchNoteRequest):
     if get_legal_store().get_activity_note(note_id):
         raise HTTPException(409, "Legal OS activity notes are read-only")
-    # Try local first, then Drive
-    note = _local_notes.get(note_id) or drive.get_note(note_id)
+    try:
+        note = get_dashboard_store().get_note(note_id)
+    except DashboardStateUnavailable:
+        note = None
+    note = note or drive.get_note(note_id)
     if not note:
         raise HTTPException(404, f"Note '{note_id}' not found")
 
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
-    patch["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    updated = note.model_copy(update=patch)
-    _local_notes[note_id] = updated
-    drive.write_signal("prod", "note-updated", updated.model_dump())
-    return updated
+    try:
+        return get_dashboard_store().upsert_note(note, patch)
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.delete(
+    "/{note_id}",
+    status_code=204,
+    dependencies=[Depends(require_operator)],
+)
+def delete_note(note_id: str):
+    if get_legal_store().get_activity_note(note_id):
+        raise HTTPException(409, "Legal OS activity notes are read-only")
+    try:
+        if not get_dashboard_store().delete_note(note_id):
+            raise HTTPException(
+                409,
+                "Only operator-created dashboard notes can be deleted here",
+            )
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
