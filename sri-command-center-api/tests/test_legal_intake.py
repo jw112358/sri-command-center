@@ -94,6 +94,53 @@ class LegalIntakeStoreTests(unittest.TestCase):
             self.store.acquire_lease(receipt.matter.matterId, "worker-1")
         )
 
+    def test_assignment_start_creates_live_assignment_and_sanitized_note(self):
+        receipt = self.store.ingest(
+            LegalIntakeRequest(
+                sourceId="manual-assignment-start",
+                subject="Privileged client description",
+                body="Confidential facts that must not appear in activity feeds.",
+                requestType="new_matter",
+            )
+        )
+        lease_id = self.store.acquire_lease(receipt.matter.matterId, "worker-1")
+        self.assertIsNotNone(lease_id)
+
+        assignments = self.store.list_assignments()
+        self.assertEqual(1, len(assignments))
+        self.assertEqual("running", assignments[0].status)
+        self.assertEqual("researching", assignments[0].stage)
+        self.assertTrue(assignments[0].assignmentId.startswith("ASG-"))
+
+        notes = self.store.list_activity_notes()
+        self.assertEqual(1, len(notes))
+        self.assertEqual("legal-os", notes[0].tag)
+        self.assertIn("Legal assignment started", notes[0].title)
+        self.assertNotIn("Privileged client description", notes[0].body)
+        self.assertNotIn("Confidential facts", notes[0].body)
+
+    def test_assignment_completion_updates_feed_and_creates_completion_note(self):
+        receipt = self.store.ingest(
+            LegalIntakeRequest(
+                sourceId="manual-assignment-complete",
+                subject="Strategy memo",
+                body="Prepare a strategy memo.",
+                requestType="strategy_memo",
+            )
+        )
+        lease_id = self.store.acquire_lease(receipt.matter.matterId, "worker-1")
+        self.assertTrue(self.store.release_lease(lease_id, "pending_approval"))
+
+        assignment = self.store.list_assignments()[0]
+        self.assertEqual("completed", assignment.status)
+        self.assertEqual("pending_approval", assignment.outcomeStatus)
+        self.assertIsNotNone(assignment.completedAt)
+
+        notes = self.store.list_activity_notes()
+        self.assertEqual(2, len(notes))
+        self.assertIn("Legal assignment completed", notes[0].title)
+        self.assertIn("Pending Approval", notes[0].body)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,7 @@
 
 import type {
   OSPlugin, Agent, LogLine, Project, Note, GraphData,
-  SystemEvent, SystemHealth, LegalDashboardState, LegalAuthConfig,
+  SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
   LegalSessionStatus,
 } from '../types';
@@ -182,6 +182,15 @@ export async function getLegalDashboard(): Promise<LegalDashboardState | null> {
     return await apiFetch<LegalDashboardState>('/api/legal/dashboard');
   } catch {
     return null;
+  }
+}
+
+export async function getLegalAssignments(): Promise<LegalAssignmentSummary[]> {
+  if (!await isApiReachable()) return [];
+  try {
+    return await apiFetch<LegalAssignmentSummary[]>('/api/legal/assignments');
+  } catch {
+    return [];
   }
 }
 

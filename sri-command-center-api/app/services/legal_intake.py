@@ -16,11 +16,13 @@ from typing import Optional
 
 from app.config import settings
 from app.models import (
+    LegalAssignmentSummary,
     LegalConnectorStatus,
     LegalDashboardState,
     LegalIntakeReceipt,
     LegalIntakeRequest,
     LegalMatterSummary,
+    Note,
 )
 
 
@@ -120,6 +122,33 @@ class LegalIntakeStore:
                     heartbeat_at TEXT NOT NULL,
                     FOREIGN KEY(matter_id) REFERENCES legal_matters(matter_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS legal_assignments (
+                    assignment_id TEXT PRIMARY KEY,
+                    matter_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    outcome_status TEXT,
+                    FOREIGN KEY(matter_id) REFERENCES legal_matters(matter_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_legal_assignments_started
+                    ON legal_assignments(started_at DESC);
+
+                CREATE TABLE IF NOT EXISTS legal_activity_notes (
+                    note_id TEXT PRIMARY KEY,
+                    assignment_id TEXT NOT NULL,
+                    matter_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(assignment_id) REFERENCES legal_assignments(assignment_id),
+                    FOREIGN KEY(matter_id) REFERENCES legal_matters(matter_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_legal_activity_notes_created
+                    ON legal_activity_notes(created_at DESC);
 
                 CREATE TABLE IF NOT EXISTS legal_audit (
                     audit_id TEXT PRIMARY KEY,
@@ -286,6 +315,65 @@ class LegalIntakeStore:
             ],
         )
 
+    def list_assignments(self, limit: int = 25) -> list[LegalAssignmentSummary]:
+        safe_limit = max(1, min(limit, 100))
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM legal_assignments
+                ORDER BY
+                    CASE status WHEN 'running' THEN 0 ELSE 1 END,
+                    COALESCE(completed_at, started_at) DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return [self._to_assignment_summary(row) for row in rows]
+
+    def list_activity_notes(self, limit: int = 100) -> list[Note]:
+        safe_limit = max(1, min(limit, 250))
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT note_id, title, body, created_at
+                FROM legal_activity_notes
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return [
+            Note(
+                id=row["note_id"],
+                title=row["title"],
+                tag="legal-os",
+                body=row["body"],
+                updatedAt=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def get_activity_note(self, note_id: str) -> Optional[Note]:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT note_id, title, body, created_at
+                FROM legal_activity_notes
+                WHERE note_id=?
+                """,
+                (note_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return Note(
+            id=row["note_id"],
+            title=row["title"],
+            tag="legal-os",
+            body=row["body"],
+            updatedAt=row["created_at"],
+        )
+
     def set_paused(self, paused: bool) -> None:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -329,6 +417,29 @@ class LegalIntakeStore:
                 (matter_id, lease_id, worker_id, now, now),
             )
             conn.execute(
+                """
+                INSERT INTO legal_assignments(
+                    assignment_id, matter_id, stage, status, started_at
+                ) VALUES (?, ?, 'researching', 'running', ?)
+                """,
+                (lease_id, matter_id, now),
+            )
+            self._insert_activity_note(
+                conn,
+                assignment_id=lease_id,
+                matter_id=matter_id,
+                event_type="assignment.started",
+                created_at=now,
+                title=f"Legal assignment started · {matter_id}",
+                body=self._assignment_note_body(
+                    event="started",
+                    assignment_id=lease_id,
+                    matter_id=matter_id,
+                    stage="researching",
+                    occurred_at=now,
+                ),
+            )
+            conn.execute(
                 "UPDATE legal_matters SET status='researching', updated_at=? WHERE matter_id=?",
                 (now, matter_id),
             )
@@ -344,10 +455,46 @@ class LegalIntakeStore:
             if not row:
                 conn.execute("ROLLBACK")
                 return False
+            completed_at = _now()
             conn.execute("DELETE FROM legal_leases WHERE lease_id=?", (lease_id,))
+            assignment = conn.execute(
+                """
+                SELECT assignment_id, matter_id, stage
+                FROM legal_assignments
+                WHERE assignment_id=?
+                """,
+                (lease_id,),
+            ).fetchone()
+            if not assignment:
+                conn.execute("ROLLBACK")
+                return False
+            conn.execute(
+                """
+                UPDATE legal_assignments
+                SET status='completed', completed_at=?, outcome_status=?
+                WHERE assignment_id=?
+                """,
+                (completed_at, next_status, lease_id),
+            )
+            self._insert_activity_note(
+                conn,
+                assignment_id=lease_id,
+                matter_id=row["matter_id"],
+                event_type="assignment.completed",
+                created_at=completed_at,
+                title=f"Legal assignment completed · {row['matter_id']}",
+                body=self._assignment_note_body(
+                    event="completed",
+                    assignment_id=lease_id,
+                    matter_id=row["matter_id"],
+                    stage=assignment["stage"],
+                    occurred_at=completed_at,
+                    outcome_status=next_status,
+                ),
+            )
             conn.execute(
                 "UPDATE legal_matters SET status=?, updated_at=? WHERE matter_id=?",
-                (next_status, _now(), row["matter_id"]),
+                (next_status, completed_at, row["matter_id"]),
             )
             conn.execute("COMMIT")
             return True
@@ -391,6 +538,83 @@ class LegalIntakeStore:
         lane = "APP" if practice_lane == "appeal" else "CIV"
         year = datetime.now(timezone.utc).year
         return f"SC-{lane}-{year}-{uuid.uuid4().hex[:8].upper()}"
+
+    @staticmethod
+    def _public_assignment_id(assignment_id: str) -> str:
+        return f"ASG-{assignment_id.rsplit(':', 1)[-1][-8:].upper()}"
+
+    @classmethod
+    def _assignment_note_body(
+        cls,
+        *,
+        event: str,
+        assignment_id: str,
+        matter_id: str,
+        stage: str,
+        occurred_at: str,
+        outcome_status: Optional[str] = None,
+    ) -> str:
+        public_id = cls._public_assignment_id(assignment_id)
+        heading = "Legal assignment started" if event == "started" else "Legal assignment completed"
+        time_label = "Started" if event == "started" else "Completed"
+        lines = [
+            f"# {heading}",
+            "",
+            f"- Matter: `{matter_id}`",
+            f"- Assignment: `{public_id}`",
+            f"- Stage: {stage.replace('_', ' ').title()}",
+            f"- {time_label}: {occurred_at}",
+        ]
+        if outcome_status:
+            lines.append(
+                f"- Resulting matter state: {outcome_status.replace('_', ' ').title()}"
+            )
+        lines.extend([
+            "",
+            "> Sanitized activity log. No party names, source communications, legal analysis, or work product are included.",
+        ])
+        return "\n".join(lines)
+
+    @staticmethod
+    def _insert_activity_note(
+        conn: sqlite3.Connection,
+        *,
+        assignment_id: str,
+        matter_id: str,
+        event_type: str,
+        title: str,
+        body: str,
+        created_at: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO legal_activity_notes(
+                note_id, assignment_id, matter_id, event_type,
+                title, body, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"legal-note:{uuid.uuid4().hex}",
+                assignment_id,
+                matter_id,
+                event_type,
+                title,
+                body,
+                created_at,
+            ),
+        )
+
+    @classmethod
+    def _to_assignment_summary(cls, row: sqlite3.Row) -> LegalAssignmentSummary:
+        return LegalAssignmentSummary(
+            assignmentId=cls._public_assignment_id(row["assignment_id"]),
+            matterId=row["matter_id"],
+            stage=row["stage"],
+            status=row["status"],
+            startedAt=row["started_at"],
+            completedAt=row["completed_at"],
+            outcomeStatus=row["outcome_status"],
+        )
 
     @staticmethod
     def _to_summary(row: sqlite3.Row) -> LegalMatterSummary:

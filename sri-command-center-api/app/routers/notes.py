@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 
 from app.models import Note, CreateNoteRequest, PatchNoteRequest
+from app.services.legal_intake import get_legal_store
 from app.services import drive
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
@@ -16,15 +17,22 @@ _local_notes: dict = {}  # note_id → Note
 @router.get("", response_model=List[Note])
 def list_notes():
     drive_notes = {n.id: n for n in drive.get_notes()}
-    merged = {**drive_notes, **_local_notes}
+    legal_notes = {n.id: n for n in get_legal_store().list_activity_notes()}
+    merged = {**drive_notes, **_local_notes, **legal_notes}
     # Return without body (per contract)
-    return [n.model_copy(update={"body": None}) for n in merged.values()]
+    return [
+        n.model_copy(update={"body": None})
+        for n in sorted(merged.values(), key=lambda note: note.updatedAt, reverse=True)
+    ]
 
 
 @router.get("/{note_id}", response_model=Note)
 def get_note(note_id: str):
     if note_id in _local_notes:
         return _local_notes[note_id]
+    legal_note = get_legal_store().get_activity_note(note_id)
+    if legal_note:
+        return legal_note
     note = drive.get_note(note_id)
     if not note:
         raise HTTPException(404, f"Note '{note_id}' not found")
@@ -47,6 +55,8 @@ def create_note(body: CreateNoteRequest):
 
 @router.patch("/{note_id}", response_model=Note)
 def patch_note(note_id: str, body: PatchNoteRequest):
+    if get_legal_store().get_activity_note(note_id):
+        raise HTTPException(409, "Legal OS activity notes are read-only")
     # Try local first, then Drive
     note = _local_notes.get(note_id) or drive.get_note(note_id)
     if not note:

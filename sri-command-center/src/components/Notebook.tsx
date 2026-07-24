@@ -209,15 +209,29 @@ export function Notebook() {
 
   const sel = notes.find(n => n.id === selId) ?? notes[0];
 
-  // ── Boot: load from API ─────────────────────────────────────────────────
+  // ── Live notes: Legal OS lifecycle notes arrive through the API ─────────
   useEffect(() => {
     let mounted = true;
-    getNotes().then(ns => {
-      if (!mounted || ns.length === 0) return;
-      setNotes(ns.map(n => ({ ...n })));
-      setSelId(ns[0].id);
-    }).catch(() => { /* keep mock */ });
-    return () => { mounted = false; };
+    const refresh = () => {
+      getNotes().then(ns => {
+        if (!mounted || ns.length === 0) return;
+        setNotes(previous => ns.map(note => {
+          const existing = previous.find(item => item.id === note.id);
+          return {
+            ...existing,
+            ...note,
+            body: note.body ?? existing?.body ?? '',
+          };
+        }));
+        setSelId(current => ns.some(note => note.id === current) ? current : ns[0].id);
+      }).catch(() => { /* keep current notes */ });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 5_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   // ── When selection changes, load full body from API ─────────────────────
@@ -257,6 +271,8 @@ export function Notebook() {
         setSelId(id);
       });
   };
+
+  const readOnlyActivity = sel?.tag === 'legal-os';
 
   return (
     <div className="nb">
@@ -304,7 +320,9 @@ export function Notebook() {
                     <div className="nti">{n.title || 'Untitled'}</div>
                     <div className="ntm">
                       <span className="ntag">#{n.tag}</span>
-                      <span className="ntime">{n.updated}</span>
+                      <span className="ntime">
+                        {n.updated ?? (n.updatedAt ? fmtISO(n.updatedAt) : '—')}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -319,16 +337,24 @@ export function Notebook() {
                 <input
                   className="nb-title-input"
                   value={sel.title}
-                  onChange={e => update({ title: e.target.value })}
+                  onChange={e => {
+                    if (!readOnlyActivity) update({ title: e.target.value });
+                  }}
+                  readOnly={readOnlyActivity}
                   placeholder="Untitled"
                 />
                 <span className="flabel" style={{ color: 'var(--muted-2)', fontSize: 9, letterSpacing: 2 }}>
-                  {sel.updated}
+                  {readOnlyActivity
+                    ? 'AUTOMATED · READ ONLY'
+                    : sel.updated ?? (sel.updatedAt ? fmtISO(sel.updatedAt) : '—')}
                 </span>
                 <input
                   className="nb-tag-input"
                   value={sel.tag}
-                  onChange={e => update({ tag: e.target.value.replace(/^#/, '') })}
+                  onChange={e => {
+                    if (!readOnlyActivity) update({ tag: e.target.value.replace(/^#/, '') });
+                  }}
+                  readOnly={readOnlyActivity}
                   placeholder="tag"
                 />
               </div>
@@ -336,7 +362,10 @@ export function Notebook() {
                 <textarea
                   className="nb-text"
                   value={sel.body ?? ''}
-                  onChange={e => update({ body: e.target.value })}
+                  onChange={e => {
+                    if (!readOnlyActivity) update({ body: e.target.value });
+                  }}
+                  readOnly={readOnlyActivity}
                   spellCheck={false}
                 />
                 <div className="nb-preview">{renderMarkdown(sel.body ?? '')}</div>
