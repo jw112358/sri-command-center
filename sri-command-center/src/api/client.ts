@@ -29,10 +29,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  if (path.startsWith('/api/legal/') || (init?.method && init.method !== 'GET')) {
-    const accessToken = getStoredLegalAccessToken();
-    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
-  }
+  // The Jeff-only operator session protects all private dashboard reads, not
+  // only Legal Agent OS endpoints. Attach it to every request made to the
+  // configured SRI API; public endpoints safely ignore the header.
+  const accessToken = getStoredLegalAccessToken();
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
