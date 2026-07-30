@@ -27,6 +27,7 @@ from app.models import (
 
 
 ACTIVE_STATES = ("researching", "drafting", "quality_review")
+STARTABLE_STATES = ("received", "revision_requested", "queued")
 MATTER_ID_RE = re.compile(r"\bSC-[A-Z0-9-]+-[0-9]{4}-[A-Z0-9-]+\b", re.I)
 CASE_NUMBER_RE = re.compile(
     r"\b(?:case|docket)\s*(?:no\.?|number|#)?\s*[:#-]?\s*([A-Z0-9-]{5,})\b",
@@ -290,10 +291,70 @@ class LegalIntakeStore:
             ).fetchall()
         return [self._to_summary(row) for row in rows]
 
+    def block_intake_persistence_failure(
+        self,
+        *,
+        matter_id: str,
+        event_id: str,
+    ) -> bool:
+        """Fail closed when an accepted source cannot be preserved in Drive."""
+        blocked_at = _now()
+        with self._lock, self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            event = conn.execute(
+                """
+                SELECT 1 FROM legal_intake_events
+                WHERE event_id=? AND matter_id=?
+                """,
+                (event_id, matter_id),
+            ).fetchone()
+            if not event:
+                conn.execute("ROLLBACK")
+                return False
+            conn.execute(
+                """
+                UPDATE legal_matters
+                SET status='blocked', updated_at=?
+                WHERE matter_id=?
+                """,
+                (blocked_at, matter_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO legal_audit(
+                    audit_id, matter_id, event_type, actor, detail, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"audit:{uuid.uuid4().hex}",
+                    matter_id,
+                    "intake.persistence_failed",
+                    "system",
+                    "matter_blocked=true; external_action=drive",
+                    blocked_at,
+                ),
+            )
+            conn.execute("COMMIT")
+        return True
+
     def dashboard(self) -> LegalDashboardState:
         matters = self.list_matters()
         active_count = sum(1 for matter in matters if matter.status in ACTIVE_STATES)
         awaiting = sum(1 for matter in matters if matter.status == "pending_approval")
+        google_grant_ready = bool(settings.legal_google_user_token_json)
+        drive_ready = bool(
+            google_grant_ready and settings.legal_drive_matters_folder_id
+        )
+        manual_ready = bool(
+            settings.legal_manual_intake_enabled
+            and settings.legal_state_persistent
+            and drive_ready
+        )
+        automation_ready = bool(
+            settings.legal_gmail_enabled
+            and settings.legal_state_persistent
+            and drive_ready
+        )
         return LegalDashboardState(
             activeCount=active_count,
             capacity=self.max_active,
@@ -302,15 +363,44 @@ class LegalIntakeStore:
             paused=self.is_paused(),
             matters=matters,
             connectors=[
-                LegalConnectorStatus(name="GMAIL", detail="LegalOS/Intake", status="READY"),
-                LegalConnectorStatus(name="DRIVE", detail="Matter system of record", status="READY"),
-                LegalConnectorStatus(name="CALENDAR", detail="Tentative deadlines", status="READY"),
-                LegalConnectorStatus(name="MIDPAGE", detail="Research + cite-check", status="READY"),
-                LegalConnectorStatus(name="DESCRYBE", detail="Secondary research", status="READY"),
+                LegalConnectorStatus(
+                    name="MASTER BUILDER",
+                    detail="Controlled manual intake",
+                    status="READY" if manual_ready else "STAGED",
+                ),
+                LegalConnectorStatus(
+                    name="GMAIL",
+                    detail=(
+                        f"{settings.legal_gmail_intake_label} scanner enabled"
+                        if automation_ready
+                        else f"{settings.legal_gmail_intake_label} label ready; scanner staged"
+                    ),
+                    status="READY" if automation_ready else "STAGED",
+                ),
+                LegalConnectorStatus(
+                    name="DRIVE",
+                    detail="Matter system of record",
+                    status="READY" if drive_ready else "BLOCKED",
+                ),
+                LegalConnectorStatus(
+                    name="CALENDAR",
+                    detail="Deadline adapter not connected",
+                    status="STAGED",
+                ),
+                LegalConnectorStatus(
+                    name="MIDPAGE",
+                    detail="Available to approved agent surfaces; runner adapter staged",
+                    status="STAGED",
+                ),
+                LegalConnectorStatus(
+                    name="DESCRYBE",
+                    detail="Available to approved agent surfaces; runner adapter staged",
+                    status="STAGED",
+                ),
                 LegalConnectorStatus(
                     name="AUTOMATION",
-                    detail="Gmail runner enabled" if settings.legal_gmail_enabled else "Runner staged",
-                    status="READY" if settings.legal_gmail_enabled else "STAGED",
+                    detail="Gmail runner enabled" if automation_ready else "Runner staged",
+                    status="READY" if automation_ready else "STAGED",
                 ),
             ],
         )
@@ -395,6 +485,13 @@ class LegalIntakeStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             if self.is_paused():
+                conn.execute("ROLLBACK")
+                return None
+            matter = conn.execute(
+                "SELECT status FROM legal_matters WHERE matter_id=?",
+                (matter_id,),
+            ).fetchone()
+            if not matter or matter["status"] not in STARTABLE_STATES:
                 conn.execute("ROLLBACK")
                 return None
             if conn.execute(

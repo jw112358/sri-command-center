@@ -22,6 +22,9 @@ const EMPTY_CAPABILITIES: DashboardCapabilities = {
   driveReadConnected: false,
   dashboardPersistenceEnabled: false,
   commandDispatchEnabled: false,
+  taskOrchestrationEnabled: false,
+  sessionSummaryWriteEnabled: false,
+  maxConcurrentTasks: 4,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -265,10 +268,13 @@ function OSRegistry({ plugins, selAgent, onLaunch, controlsEnabled }: OSRegistry
             </button>
             <button
               className="btn sm"
-              disabled
-              title="Configuration adapter is not connected"
+              type="button"
+              title="Configuration becomes available when the OS exposes a verified settings adapter."
+              onClick={() => window.alert(
+                `${os.name} configuration is not exposed yet. No settings were changed.`,
+              )}
             >
-              ⚙ CONFIGURE
+              ⚙ CONFIG STATUS
             </button>
           </div>
         </div>

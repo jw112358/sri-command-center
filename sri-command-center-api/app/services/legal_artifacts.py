@@ -10,6 +10,7 @@ from typing import Any
 from googleapiclient.http import MediaIoBaseUpload
 
 from app.config import settings
+from app.models import LegalIntakeReceipt, LegalIntakeRequest
 
 
 ALLOWED_ATTACHMENT_MIME_TYPES = {
@@ -190,6 +191,54 @@ def persist_gmail_source(
         "email_file_id": email_file_id,
         "manifest_id": manifest_id,
         "attachment_count": len(attachments),
+    }
+
+
+def persist_manual_source(
+    drive_service,
+    *,
+    request: LegalIntakeRequest,
+    receipt: LegalIntakeReceipt,
+) -> dict[str, Any]:
+    """Preserve a Master Builder intake record before it enters active work."""
+    if not settings.legal_drive_matters_folder_id:
+        raise RuntimeError("LEGAL_DRIVE_MATTERS_FOLDER_ID is required for live intake")
+
+    matter_id = receipt.matter.matterId
+    matter_folder = _ensure_folder(
+        drive_service,
+        settings.legal_drive_matters_folder_id,
+        matter_id,
+    )
+    intake_folder = _ensure_folder(drive_service, matter_folder, "00 Intake")
+    _ensure_folder(drive_service, matter_folder, "01 Source")
+    recorded_at = datetime.now(timezone.utc).isoformat()
+    event_suffix = receipt.eventId.rsplit(":", 1)[-1]
+    record = {
+        "matter_id": matter_id,
+        "event_id": receipt.eventId,
+        "recorded_at": recorded_at,
+        "channel": request.channel,
+        "request_type": request.requestType,
+        "practice_lane": request.practiceLane,
+        "source_id": request.sourceId,
+        "thread_id": request.threadId,
+        "sender": request.sender,
+        "subject": request.subject,
+        "body": request.body,
+        "operator_notes": request.operatorNotes,
+    }
+    source_file_id = _upload_bytes(
+        drive_service,
+        intake_folder,
+        f"master-builder-intake-{event_suffix}.json",
+        json.dumps(record, indent=2, ensure_ascii=False).encode("utf-8"),
+        "application/json",
+    )
+    return {
+        "matter_folder_id": matter_folder,
+        "source_file_id": source_file_id,
+        "recorded_at": recorded_at,
     }
 
 

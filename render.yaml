@@ -12,7 +12,11 @@ services:
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false   # secret service-account JSON; share only the SRI Drive root
       - key: DASHBOARD_DRIVE_WRITE_ENABLED
-        value: "false" # enable after the service account and Jeff sign-in are verified
+        value: "true" # uses the scoped Jeff user grant when service-account keys are blocked
+      - key: ORCHESTRATOR_RUNNER_TOKEN
+        sync: false   # separate trusted-worker secret; never exposed to the browser
+      - key: ORCHESTRATOR_MAX_CONCURRENT_TASKS
+        value: "4"
       - key: COMMAND_DISPATCH_ENABLED
         value: "false" # enable only after an OS runner consumes and acknowledges commands
       - key: DASHBOARD_SESSION_SUMMARIES_FOLDER_ID

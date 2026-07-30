@@ -34,14 +34,52 @@ class DashboardStateStoreTests(unittest.TestCase):
         self.assertTrue(self.store.delete_note(created.id))
         self.assertIsNone(self.store.get_note(created.id))
 
-    def test_task_completion_timestamps_and_reopens(self):
+    def test_task_requires_review_and_operator_approval_before_completion(self):
         task = self.store.create_task("Verify deployment")
-        completed = self.store.patch_task(task.id, {"done": True})
+        claimed = self.store.claim_tasks("codex", 1)[0]
+        self.assertEqual("running", claimed.status)
+        review_ready = self.store.mark_task_review_ready(
+            task.id,
+            worker_id="codex",
+            summary_id="brief:review",
+            review_url="https://example.test/review",
+            evidence_urls=["https://example.test/checks"],
+        )
+        self.assertEqual("review_ready", review_ready.status)
+        shipping = self.store.approve_task_for_shipping(task.id)
+        self.assertEqual("shipping", shipping.status)
+        completed = self.store.complete_task(
+            task.id,
+            worker_id="codex",
+            summary_id="brief:complete",
+            evidence_urls=["https://example.test/production"],
+        )
+        self.assertEqual("completed", completed.status)
         self.assertTrue(completed.done)
         self.assertIsNotNone(completed.completedAt)
-        reopened = self.store.patch_task(task.id, {"done": False})
-        self.assertFalse(reopened.done)
-        self.assertIsNone(reopened.completedAt)
+
+    def test_task_claims_respect_four_slot_cap(self):
+        for index in range(6):
+            self.store.create_task(f"Task {index}")
+        first = self.store.claim_tasks("codex", 4)
+        second = self.store.claim_tasks("claude", 4)
+        self.assertEqual(4, len(first))
+        self.assertEqual([], second)
+
+    def test_blocked_task_can_be_requeued(self):
+        task = self.store.create_task("Blocked build")
+        self.store.claim_tasks("opencode", 1)
+        blocked = self.store.block_task(
+            task.id,
+            worker_id="opencode",
+            reason="Dependency unavailable",
+            summary_id="brief:blocked",
+            evidence_urls=[],
+        )
+        self.assertEqual("blocked", blocked.status)
+        requeued = self.store.requeue_task(task.id)
+        self.assertEqual("queued", requeued.status)
+        self.assertIsNone(requeued.assignedAgent)
 
     def test_project_create_and_lane_update(self):
         project = self.store.create_project(

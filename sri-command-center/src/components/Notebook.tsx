@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Note, SessionBrief, Task } from '../types';
 import {
+  approveTaskForShipping,
   createNote,
   createTask,
   deleteNote,
   deleteTask,
+  getDashboardCapabilities,
   getNote,
   getNotes,
   getSessionBriefs,
   getTasks,
   patchNote,
-  patchTask,
+  requeueTask,
 } from '../api/client';
 
 // ─── Markdown renderer (inline, no external dep) ──────────────────────────────
@@ -85,17 +87,28 @@ function fmtISO(iso: string): string {
 function TasksPanel() {
   const [tasks, setTasks]   = useState<Task[]>([]);
   const [input, setInput]   = useState('');
-  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
+  const [project, setProject] = useState('Master Builder');
+  const [filter, setFilter] = useState<'all' | 'active' | 'review' | 'done'>('all');
   const [status, setStatus] = useState<'ready' | 'saving' | 'error'>('ready');
+  const [runnerReady, setRunnerReady] = useState(false);
+  const [maxConcurrent, setMaxConcurrent] = useState(4);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
     const refresh = () => {
-      getTasks().then(items => {
-        if (mounted) setTasks(items);
-      }).catch(() => {
-        if (mounted) setStatus('error');
+      Promise.allSettled([getTasks(), getDashboardCapabilities()]).then(([taskResult, capabilityResult]) => {
+        if (!mounted) return;
+        if (taskResult.status === 'fulfilled') {
+          setTasks(taskResult.value);
+          setStatus('ready');
+        } else {
+          setStatus('error');
+        }
+        if (capabilityResult.status === 'fulfilled') {
+          setRunnerReady(capabilityResult.value.taskOrchestrationEnabled);
+          setMaxConcurrent(capabilityResult.value.maxConcurrentTasks);
+        }
       });
     };
     refresh();
@@ -110,7 +123,7 @@ function TasksPanel() {
     const text = input.trim();
     if (!text) return;
     setStatus('saving');
-    createTask(text).then(task => {
+    createTask({ text, project: project.trim() || 'Master Builder' }).then(task => {
       setTasks(current => [task, ...current]);
       setInput('');
       setStatus('ready');
@@ -118,12 +131,21 @@ function TasksPanel() {
     }).catch(() => setStatus('error'));
   };
 
-  const toggle = (id: string) => {
-    const task = tasks.find(item => item.id === id);
-    if (!task) return;
+  const approveAndShip = (task: Task) => {
+    if (!window.confirm(
+      `Approve the reviewed action for “${task.text}” and authorize its production/external shipping step?`,
+    )) return;
     setStatus('saving');
-    patchTask(id, { done: !task.done }).then(updated => {
-      setTasks(current => current.map(item => item.id === id ? updated : item));
+    approveTaskForShipping(task.id).then(updated => {
+      setTasks(current => current.map(item => item.id === task.id ? updated : item));
+      setStatus('ready');
+    }).catch(() => setStatus('error'));
+  };
+
+  const requeue = (task: Task) => {
+    setStatus('saving');
+    requeueTask(task.id).then(updated => {
+      setTasks(current => current.map(item => item.id === task.id ? updated : item));
       setStatus('ready');
     }).catch(() => setStatus('error'));
   };
@@ -136,22 +158,29 @@ function TasksPanel() {
     }).catch(() => setStatus('error'));
   };
 
-  const visible = tasks.filter(t =>
-    filter === 'all' ? true : filter === 'open' ? !t.done : t.done
-  );
+  const visible = tasks.filter(task => {
+    if (filter === 'all') return true;
+    if (filter === 'active') return ['queued', 'running', 'shipping'].includes(task.status);
+    if (filter === 'review') return ['review_ready', 'blocked'].includes(task.status);
+    return task.status === 'completed';
+  });
 
-  const openCount = tasks.filter(t => !t.done).length;
-  const doneCount = tasks.filter(t => t.done).length;
+  const activeCount = tasks.filter(task => (
+    ['running', 'review_ready', 'shipping'].includes(task.status)
+  )).length;
+  const queuedCount = tasks.filter(task => task.status === 'queued').length;
+  const reviewCount = tasks.filter(task => task.status === 'review_ready').length;
 
   return (
     <div className="tasks-panel">
       {/* Header row */}
       <div className="tasks-head">
         <span className="tasks-title">TASKS</span>
-        <span className="badge ACTIVE"><span className="bd"></span>{openCount} OPEN</span>
-        <span className="badge dim" style={{ opacity: 0.6 }}>{doneCount} DONE</span>
+        <span className="badge ACTIVE"><span className="bd"></span>{activeCount} / {maxConcurrent} ACTIVE</span>
+        <span className="badge IDLE"><span className="bd"></span>{queuedCount} QUEUED</span>
+        <span className="badge BLOCKED"><span className="bd"></span>{reviewCount} REVIEW READY</span>
         <div className="tasks-filters">
-          {(['all', 'open', 'done'] as const).map(f => (
+          {(['all', 'active', 'review', 'done'] as const).map(f => (
             <button
               key={f}
               className={'btn sm' + (filter === f ? ' solid' : '')}
@@ -162,22 +191,41 @@ function TasksPanel() {
           ))}
         </div>
         <span className={'nb-save-state ' + status}>
-          {status === 'saving' ? 'SAVING…' : status === 'error' ? 'SIGN IN / STORAGE REQUIRED' : 'DRIVE SYNCED'}
+          {status === 'saving'
+            ? 'SAVING…'
+            : status === 'error'
+              ? 'SIGN IN / STORAGE REQUIRED'
+              : runnerReady
+                ? 'ORCHESTRATOR ONLINE'
+                : 'QUEUE READY · RUNNER NOT CONNECTED'}
         </span>
       </div>
 
       {/* Add task input */}
       <div className="tasks-add">
         <input
+          className="tasks-project-input"
+          value={project}
+          onChange={event => setProject(event.target.value)}
+          placeholder="Project / build"
+          aria-label="Project or build"
+        />
+        <input
           ref={inputRef}
           className="tasks-input"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && addTask()}
-          placeholder="Add a task and press Enter…"
+          placeholder="Describe the outcome to build and ship…"
         />
-        <button className="btn solid sm" onClick={addTask}>+ ADD</button>
+        <button className="btn solid sm" onClick={addTask}>+ QUEUE TASK</button>
       </div>
+      {!runnerReady && (
+        <div className="tasks-runner-notice">
+          Tasks can be recorded, but autonomous pickup remains paused until the trusted
+          SRI Orchestrator runner token is connected.
+        </div>
+      )}
 
       {/* Task list */}
       <div className="tasks-list">
@@ -185,28 +233,45 @@ function TasksPanel() {
           <div className="empty" style={{ padding: '24px 0', textAlign: 'center' }}>— NO TASKS —</div>
         )}
         {visible.map(t => (
-          <div className={'task-row' + (t.done ? ' done' : '')} key={t.id}>
-            <button
-              className={'task-check' + (t.done ? ' checked' : '')}
-              onClick={() => toggle(t.id)}
-              title={t.done ? 'Mark open' : 'Mark complete'}
-            >
-              {t.done ? '✓' : '▢'}
-            </button>
+          <div className={'task-row status-' + t.status + (t.done ? ' done' : '')} key={t.id}>
+            <span className={'task-state task-state-' + t.status}>
+              {t.status.replace(/_/g, ' ').toUpperCase()}
+            </span>
             <div className="task-body">
+              <span className="task-project">{t.project}</span>
               <span className="task-text">{t.text}</span>
               <div className="task-meta">
                 <span className="task-ts">Added {fmtISO(t.createdAt)}</span>
-                {t.done && t.completedAt && (
+                {t.assignedAgent && <span className="task-ts"> · {t.assignedAgent}</span>}
+                {t.status === 'completed' && t.completedAt && (
                   <span className="task-ts done-ts"> · Done {fmtISO(t.completedAt)}</span>
                 )}
               </div>
+              {t.lastError && <p className="task-error">{t.lastError}</p>}
+              <div className="task-links">
+                {t.reviewUrl && (
+                  <a className="btn sm" href={t.reviewUrl} target="_blank" rel="noreferrer">
+                    OPEN REVIEW ↗
+                  </a>
+                )}
+                {t.summaryId && <span>SESSION SUMMARY FILED</span>}
+                {t.status === 'review_ready' && (
+                  <button className="btn solid sm" onClick={() => approveAndShip(t)}>
+                    APPROVE &amp; SHIP
+                  </button>
+                )}
+                {t.status === 'blocked' && (
+                  <button className="btn sm" onClick={() => requeue(t)}>REQUEUE</button>
+                )}
+              </div>
             </div>
-            <button
-              className="btn sm danger task-del"
-              onClick={() => remove(t.id)}
-              title="Delete"
-            >✕</button>
+            {['queued', 'blocked', 'completed'].includes(t.status) && (
+              <button
+                className="btn sm danger task-del"
+                onClick={() => remove(t.id)}
+                title="Delete"
+              >✕</button>
+            )}
           </div>
         ))}
       </div>
@@ -221,24 +286,29 @@ function SessionBriefsPanel() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [writeReady, setWriteReady] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     const refresh = () => {
-      getSessionBriefs().then(items => {
+      Promise.allSettled([getSessionBriefs(), getDashboardCapabilities()]).then(([briefResult, capabilityResult]) => {
         if (!mounted) return;
-        setBriefs(items);
-        setSelectedId(current => items.some(item => item.id === current) ? current : items[0]?.id ?? '');
-        setError('');
-        setLoading(false);
-      }).catch(reason => {
-        if (!mounted) return;
-        const message = reason instanceof Error ? reason.message : '';
-        setError(
-          /authorization|authentication|not configured|session expired/i.test(message)
-            ? 'SIGN IN ON LEGAL AGENT OS TO VIEW PRIVATE SESSION BRIEFS'
-            : 'SESSION BRIEFS ARE TEMPORARILY UNAVAILABLE',
-        );
+        if (briefResult.status === 'fulfilled') {
+          const items = briefResult.value;
+          setBriefs(items);
+          setSelectedId(current => items.some(item => item.id === current) ? current : items[0]?.id ?? '');
+          setError('');
+        } else {
+          const message = briefResult.reason instanceof Error ? briefResult.reason.message : '';
+          setError(
+            /authorization|authentication|not configured|session expired/i.test(message)
+              ? 'SIGN IN ON LEGAL AGENT OS TO VIEW PRIVATE SESSION BRIEFS'
+              : 'SESSION BRIEFS ARE TEMPORARILY UNAVAILABLE',
+          );
+        }
+        if (capabilityResult.status === 'fulfilled') {
+          setWriteReady(capabilityResult.value.sessionSummaryWriteEnabled);
+        }
         setLoading(false);
       });
     };
@@ -264,8 +334,16 @@ function SessionBriefsPanel() {
       <section className="panel session-brief-list-panel">
         <div className="panel-h">
           <span className="t">SESSION BRIEFS</span>
-          <span className="corner">{briefs.length} INDEXED</span>
+          <span className="corner">
+            {briefs.length} INDEXED · {writeReady ? 'AUTO-INGEST READY' : 'INGEST SETUP REQUIRED'}
+          </span>
         </div>
+        {!writeReady && (
+          <div className="session-ingest-notice">
+            The index is readable, but new cross-surface summaries cannot be filed until
+            the Drive write grant is enabled.
+          </div>
+        )}
         <div className="session-brief-search">
           <input
             value={query}
@@ -305,6 +383,7 @@ function SessionBriefsPanel() {
                 <span>{selected.date}</span>
                 <span>{selected.surface}</span>
                 <span>{selected.status.replace(/-/g, ' ')}</span>
+                {selected.taskId && <span>{selected.taskId}</span>}
               </div>
               <h2>{selected.title}</h2>
               <div className="session-brief-section">

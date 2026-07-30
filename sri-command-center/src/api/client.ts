@@ -171,10 +171,14 @@ export async function getTasks(): Promise<Task[]> {
   return apiFetch<Task[]>('/api/tasks');
 }
 
-export async function createTask(text: string): Promise<Task> {
+export async function createTask(body: {
+  text: string;
+  project: string;
+  preferredSurface?: string;
+}): Promise<Task> {
   return apiFetch<Task>('/api/tasks', {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -187,6 +191,14 @@ export async function patchTask(id: string, patch: Partial<Task>): Promise<Task>
 
 export async function deleteTask(id: string): Promise<void> {
   return apiFetch<void>(`/api/tasks/${id}`, { method: 'DELETE' });
+}
+
+export async function approveTaskForShipping(id: string): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${id}/approve-ship`, { method: 'POST' });
+}
+
+export async function requeueTask(id: string): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${id}/requeue`, { method: 'POST' });
 }
 
 export async function getSessionBriefs(): Promise<SessionBrief[]> {
@@ -225,6 +237,9 @@ export async function getDashboardCapabilities(): Promise<DashboardCapabilities>
       driveReadConnected: false,
       dashboardPersistenceEnabled: false,
       commandDispatchEnabled: false,
+      taskOrchestrationEnabled: false,
+      sessionSummaryWriteEnabled: false,
+      maxConcurrentTasks: 4,
     };
   }
   return apiFetch<DashboardCapabilities>('/api/capabilities');

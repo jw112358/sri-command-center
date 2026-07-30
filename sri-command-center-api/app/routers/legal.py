@@ -31,6 +31,14 @@ from app.services.legal_intake import get_legal_store
 router = APIRouter(prefix="/api/legal", tags=["legal"])
 
 
+def _manual_intake_ready() -> bool:
+    if not settings.legal_manual_intake_enabled:
+        return False
+    from app.services.legal_google import legal_runner_config_errors
+
+    return not legal_runner_config_errors()
+
+
 def require_operator(
     authorization: str | None = Header(default=None),
 ) -> OperatorPrincipal:
@@ -56,10 +64,7 @@ def auth_config():
         enabled=google_operator_auth_enabled(),
         clientId=settings.legal_google_client_id if google_operator_auth_enabled() else "",
         sessionTtlSeconds=settings.legal_session_ttl_seconds,
-        manualIntakeEnabled=(
-            settings.legal_manual_intake_enabled
-            and settings.legal_state_persistent
-        ),
+        manualIntakeEnabled=_manual_intake_ready(),
     )
 
 
@@ -154,14 +159,36 @@ def complete_assignment(
     dependencies=[Depends(require_operator)],
 )
 def manual_intake(body: LegalIntakeRequest):
-    if not settings.legal_manual_intake_enabled or not settings.legal_state_persistent:
+    if not _manual_intake_ready():
         raise HTTPException(
             503,
-            "Manual intake remains staged until persistent state is enabled",
+            "Manual intake remains staged until durable state and Drive persistence are ready",
         )
     if body.channel != "master_builder":
         raise HTTPException(400, "Manual intake channel must be master_builder")
-    return get_legal_store().ingest(body)
+    store = get_legal_store()
+    receipt = store.ingest(body)
+    if receipt.duplicate:
+        return receipt
+    try:
+        from app.services.legal_artifacts import persist_manual_source
+        from app.services.legal_google import build_legal_drive_service
+
+        persist_manual_source(
+            build_legal_drive_service(),
+            request=body,
+            receipt=receipt,
+        )
+    except Exception as exc:
+        store.block_intake_persistence_failure(
+            matter_id=receipt.matter.matterId,
+            event_id=receipt.eventId,
+        )
+        raise HTTPException(
+            502,
+            "Manual intake could not be preserved in Drive and was safely blocked",
+        ) from exc
+    return receipt
 
 
 @router.post("/pause", dependencies=[Depends(require_operator)])

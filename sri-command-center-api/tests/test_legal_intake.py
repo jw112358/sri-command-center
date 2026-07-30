@@ -94,6 +94,27 @@ class LegalIntakeStoreTests(unittest.TestCase):
             self.store.acquire_lease(receipt.matter.matterId, "worker-1")
         )
 
+    def test_drive_persistence_failure_blocks_accepted_matter(self):
+        receipt = self.store.ingest(
+            LegalIntakeRequest(
+                sourceId="manual-drive-failure",
+                subject="New matter",
+                body="Open a new South Carolina civil matter.",
+                requestType="new_matter",
+            )
+        )
+        self.assertTrue(
+            self.store.block_intake_persistence_failure(
+                matter_id=receipt.matter.matterId,
+                event_id=receipt.eventId,
+            )
+        )
+        matter = self.store.list_matters()[0]
+        self.assertEqual("blocked", matter.status)
+        self.assertIsNone(
+            self.store.acquire_lease(matter.matterId, "worker-1")
+        )
+
     def test_assignment_start_creates_live_assignment_and_sanitized_note(self):
         receipt = self.store.ingest(
             LegalIntakeRequest(

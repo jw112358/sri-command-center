@@ -75,7 +75,10 @@ def _get_drive_service():
          GCP/Cloud Run with Workload Identity. No JSON key file needed.
          Organization policies that block service account key creation
          (iam.disableServiceAccountKeyCreation) are not a problem here.
-      2. Service account JSON file — used only when
+      2. The restricted Jeff user grant configured for Legal Agent OS. This is
+         the production fallback when organization policy blocks service
+         account keys.
+      3. Service account JSON file — used only when
          GOOGLE_SERVICE_ACCOUNT_FILE is set in .env AND the file exists.
          Skip silently if the org policy blocks key creation.
     """
@@ -101,9 +104,23 @@ def _get_drive_service():
         log.info("Google Drive: authenticated via Application Default Credentials")
         return _drive_service
     except Exception as adc_err:
-        log.debug(f"ADC not available ({adc_err}); trying service account file …")
+        log.debug(f"ADC not available ({adc_err}); trying configured user grant …")
 
-    # ── Attempt 2: Service account JSON secret (preferred on Render) ─────
+    # ── Attempt 2: Jeff user grant (preferred on current Render setup) ────
+    if settings.legal_google_user_token_json:
+        try:
+            from app.services.legal_google import load_legal_google_credentials
+
+            creds = load_legal_google_credentials()
+            _drive_service = build(
+                "drive", "v3", credentials=creds, cache_discovery=False
+            )
+            log.info("Google Drive: authenticated via configured SRI user grant")
+            return _drive_service
+        except Exception as user_err:
+            log.warning("Configured SRI user grant could not be loaded: %s", user_err)
+
+    # ── Attempt 3: Service account JSON secret ────────────────────────────
     if settings.google_service_account_json:
         try:
             from google.oauth2 import service_account
@@ -120,7 +137,7 @@ def _get_drive_service():
         except Exception as json_err:
             log.warning("Service account JSON secret could not be loaded: %s", json_err)
 
-    # ── Attempt 3: Service account JSON file (optional) ──────────────────
+    # ── Attempt 4: Service account JSON file (optional) ──────────────────
     sa_file = getattr(settings, "google_service_account_file", None)
     if sa_file and Path(sa_file).exists():
         try:
