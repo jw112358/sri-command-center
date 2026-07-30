@@ -61,10 +61,22 @@ export interface Note {
 export interface Task {
   id: string;
   text: string;
+  project: string;
+  preferredSurface?: string | null;
+  status: 'queued' | 'running' | 'review_ready' | 'shipping' | 'completed' | 'blocked';
   done: boolean;
   createdAt: string;
+  startedAt?: string | null;
+  reviewReadyAt?: string | null;
+  approvedAt?: string | null;
   completedAt?: string | null;
+  blockedAt?: string | null;
   updatedAt: string;
+  assignedAgent?: string | null;
+  summaryId?: string | null;
+  reviewUrl?: string | null;
+  evidenceUrls: string[];
+  lastError?: string | null;
 }
 
 export interface SessionBrief {
@@ -80,6 +92,7 @@ export interface SessionBrief {
   nextStart: string;
   sourceUrl: string;
   updatedAt: string;
+  taskId?: string | null;
 }
 
 export type NodeKind = 'hub' | 'project' | 'agent' | 'skill';
@@ -126,6 +139,9 @@ export interface DashboardCapabilities {
   driveReadConnected: boolean;
   dashboardPersistenceEnabled: boolean;
   commandDispatchEnabled: boolean;
+  taskOrchestrationEnabled: boolean;
+  sessionSummaryWriteEnabled: boolean;
+  maxConcurrentTasks: number;
 }
 
 export type LegalRequestType =

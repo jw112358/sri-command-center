@@ -1,6 +1,40 @@
 import unittest
+from unittest.mock import patch
 
-from app.services.session_briefs import parse_session_summary
+from app.config import settings
+from app.models import CreateSessionSummaryRequest
+from app.services.session_briefs import create_session_summary, parse_session_summary
+
+
+class FakeCreateRequest:
+    def __init__(self, result):
+        self.result = result
+
+    def execute(self):
+        return self.result
+
+
+class FakeFiles:
+    def __init__(self):
+        self.created = None
+
+    def create(self, **kwargs):
+        self.created = kwargs
+        return FakeCreateRequest({
+            "id": "new-summary",
+            "name": kwargs["body"]["name"],
+            "createdTime": "2026-07-30T12:00:00Z",
+            "modifiedTime": "2026-07-30T12:00:00Z",
+            "webViewLink": "https://drive.google.com/file/d/new-summary/view",
+        })
+
+
+class FakeDriveService:
+    def __init__(self):
+        self._files = FakeFiles()
+
+    def files(self):
+        return self._files
 
 
 class SessionBriefParserTests(unittest.TestCase):
@@ -58,6 +92,45 @@ Confirm the result and update the canonical record.
             raw,
         )
         self.assertIn("Confirm the result", brief.nextStart)
+
+    def test_material_summary_is_written_and_linked_to_task(self):
+        original_enabled = settings.dashboard_drive_write_enabled
+        original_folder = settings.dashboard_session_summaries_folder_id
+        settings.dashboard_drive_write_enabled = True
+        settings.dashboard_session_summaries_folder_id = "summary-folder"
+        service = FakeDriveService()
+        try:
+            with patch("app.services.session_briefs.drive.get_drive_service", return_value=service):
+                brief = create_session_summary(CreateSessionSummaryRequest(
+                    project="Master Builder",
+                    surface="Codex",
+                    title="Command Center review ready",
+                    summary="Implemented and tested the orchestrator queue.",
+                    currentState="The change is ready for Jeff's review.",
+                    nextStart="Open the review packet and decide whether to Approve & Ship.",
+                    materialChange=True,
+                    taskId="task:123",
+                    status="review-ready",
+                    evidenceUrls=["https://example.test/checks"],
+                ))
+        finally:
+            settings.dashboard_drive_write_enabled = original_enabled
+            settings.dashboard_session_summaries_folder_id = original_folder
+        self.assertEqual("task:123", brief.taskId)
+        self.assertEqual("review-ready", brief.status)
+        self.assertEqual("summary-folder", service._files.created["body"]["parents"][0])
+
+    def test_non_material_summary_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "materially change"):
+            create_session_summary(CreateSessionSummaryRequest(
+                project="Master Builder",
+                surface="Codex",
+                title="Read-only session",
+                summary="No change.",
+                currentState="Unchanged.",
+                nextStart="Continue later.",
+                materialChange=False,
+            ))
 
 
 if __name__ == "__main__":

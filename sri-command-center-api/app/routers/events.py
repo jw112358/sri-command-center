@@ -41,4 +41,11 @@ def capabilities():
         commandDispatchEnabled=bool(
             write_ready and settings.command_dispatch_enabled
         ),
+        taskOrchestrationEnabled=bool(
+            write_ready and settings.orchestrator_runner_token
+        ),
+        sessionSummaryWriteEnabled=bool(
+            write_ready and settings.dashboard_session_summaries_folder_id
+        ),
+        maxConcurrentTasks=settings.orchestrator_max_concurrent_tasks,
     )

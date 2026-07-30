@@ -5,14 +5,16 @@ import json
 import re
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import frontmatter
+from googleapiclient.http import MediaInMemoryUpload
 
 from app.config import settings
-from app.models import SessionBrief
+from app.models import CreateSessionSummaryRequest, SessionBrief
 from app.services import drive
 
 _cache: list[SessionBrief] = []
@@ -59,6 +61,85 @@ def list_session_briefs(limit: int = 50) -> list[SessionBrief]:
         _cache = briefs
         _cache_at = time.monotonic()
         return briefs[:safe_limit]
+
+
+def create_session_summary(body: CreateSessionSummaryRequest) -> SessionBrief:
+    """File one material, cross-surface handoff in the canonical Drive folder."""
+    if not body.materialChange:
+        raise ValueError("Only sessions that materially change a project are filed")
+    service = drive.get_drive_service()
+    folder_id = settings.dashboard_session_summaries_folder_id
+    if (
+        not service
+        or not folder_id
+        or not settings.dashboard_drive_write_enabled
+    ):
+        raise RuntimeError("Session summary Drive writes are not configured")
+
+    now = datetime.now(timezone.utc)
+    session_id = f"platform-session-{now.strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:6]}"
+    safe_project = re.sub(r"[^a-z0-9]+", "-", body.project.lower()).strip("-")
+    filename = f"{session_id}_{safe_project or 'project'}.md"
+    raw = _render_session_summary(session_id, now, body)
+    media = MediaInMemoryUpload(
+        raw.encode("utf-8"),
+        mimetype="text/markdown",
+        resumable=False,
+    )
+    created = service.files().create(
+        body={
+            "name": filename,
+            "parents": [folder_id],
+            "mimeType": "text/markdown",
+        },
+        media_body=media,
+        fields="id,name,createdTime,modifiedTime,webViewLink,mimeType",
+    ).execute()
+    created.setdefault("createdTime", now.isoformat())
+    created.setdefault("modifiedTime", now.isoformat())
+    created.setdefault(
+        "webViewLink",
+        f"https://drive.google.com/file/d/{created['id']}/view",
+    )
+    invalidate_session_brief_cache()
+    return parse_session_summary(created, raw)
+
+
+def invalidate_session_brief_cache() -> None:
+    global _cache, _cache_at
+    with _lock:
+        _cache = []
+        _cache_at = 0.0
+
+
+def _render_session_summary(
+    session_id: str,
+    now: datetime,
+    body: CreateSessionSummaryRequest,
+) -> str:
+    metadata = {
+        "session_id": session_id,
+        "date": now.date().isoformat(),
+        "project": body.project,
+        "surface": body.surface,
+        "status": body.status,
+        "material_change": True,
+    }
+    if body.taskId:
+        metadata["task_id"] = body.taskId
+    front_matter = "\n".join(
+        f"{key}: {json.dumps(value)}" for key, value in metadata.items()
+    )
+    evidence = "\n".join(f"- {url}" for url in body.evidenceUrls)
+    evidence_section = f"\n\n## Verification Evidence\n\n{evidence}" if evidence else ""
+    return (
+        f"---\n{front_matter}\n---\n"
+        f"# {body.title.strip()}\n\n"
+        f"## Material Outcome\n\n{body.summary.strip()}\n\n"
+        f"## Current State\n\n{body.currentState.strip()}"
+        f"{evidence_section}\n\n"
+        f"## Begin Next Session Here\n\n{body.nextStart.strip()}\n"
+    )
 
 
 def parse_session_summary(file_meta: dict[str, Any], raw: str) -> SessionBrief:
@@ -133,6 +214,7 @@ def parse_session_summary(file_meta: dict[str, Any], raw: str) -> SessionBrief:
         nextStart=next_start,
         sourceUrl=source_url,
         updatedAt=modified,
+        taskId=str(metadata.get("task_id")) if metadata.get("task_id") else None,
     )
 
 

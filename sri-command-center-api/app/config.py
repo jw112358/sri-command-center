@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     dashboard_session_summaries_folder_id: str = (
         "18izBaGlyEQBF8aWaGRajxTRp_oO9ejWk"
     )
+    orchestrator_runner_token: str = ""
+    orchestrator_max_concurrent_tasks: int = 4
 
     # GitHub
     github_token: str = ""

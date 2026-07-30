@@ -11,7 +11,7 @@ from app.config import settings
 
 LEGAL_GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive",
 ]
 
 
@@ -38,6 +38,18 @@ def load_legal_google_credentials():
         credentials, _ = google.auth.default(scopes=LEGAL_GOOGLE_SCOPES)
         return credentials
     raise RuntimeError("Legal Google user credentials are not configured")
+
+
+def build_legal_drive_service():
+    """Build the restricted Drive client used by live legal intake."""
+    from googleapiclient.discovery import build
+
+    return build(
+        "drive",
+        "v3",
+        credentials=load_legal_google_credentials(),
+        cache_discovery=False,
+    )
 
 
 def legal_runner_config_errors() -> list[str]:

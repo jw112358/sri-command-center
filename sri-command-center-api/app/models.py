@@ -45,6 +45,14 @@ class EventSeverity(str, Enum):
     INFO  = "info"
     ERROR = "error"
 
+class TaskStatus(str, Enum):
+    QUEUED       = "queued"
+    RUNNING      = "running"
+    REVIEW_READY = "review_ready"
+    SHIPPING     = "shipping"
+    COMPLETED    = "completed"
+    BLOCKED      = "blocked"
+
 
 # ── Core entities ─────────────────────────────────────────────────────────────
 
@@ -102,10 +110,22 @@ class Note(BaseModel):
 class Task(BaseModel):
     id: str
     text: str
+    project: str = "Master Builder"
+    preferredSurface: Optional[str] = None
+    status: TaskStatus = TaskStatus.QUEUED
     done: bool = False
     createdAt: str
+    startedAt: Optional[str] = None
+    reviewReadyAt: Optional[str] = None
+    approvedAt: Optional[str] = None
     completedAt: Optional[str] = None
+    blockedAt: Optional[str] = None
     updatedAt: str
+    assignedAgent: Optional[str] = None
+    summaryId: Optional[str] = None
+    reviewUrl: Optional[str] = None
+    evidenceUrls: List[str] = Field(default_factory=list)
+    lastError: Optional[str] = None
 
 
 class SessionBrief(BaseModel):
@@ -121,6 +141,7 @@ class SessionBrief(BaseModel):
     nextStart: str
     sourceUrl: str
     updatedAt: str
+    taskId: Optional[str] = None
 
 
 class GraphNode(BaseModel):
@@ -162,6 +183,9 @@ class DashboardCapabilities(BaseModel):
     driveReadConnected: bool
     dashboardPersistenceEnabled: bool
     commandDispatchEnabled: bool
+    taskOrchestrationEnabled: bool = False
+    sessionSummaryWriteEnabled: bool = False
+    maxConcurrentTasks: int = 4
 
 
 # ── Request / response bodies ─────────────────────────────────────────────────
@@ -198,11 +222,55 @@ class PatchNoteRequest(BaseModel):
 
 class CreateTaskRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2_000)
+    project: str = Field(default="Master Builder", min_length=1, max_length=200)
+    preferredSurface: Optional[str] = Field(default=None, max_length=100)
 
 
 class PatchTaskRequest(BaseModel):
     text: Optional[str] = Field(default=None, min_length=1, max_length=2_000)
-    done: Optional[bool] = None
+    project: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    preferredSurface: Optional[str] = Field(default=None, max_length=100)
+
+
+class TaskClaimRequest(BaseModel):
+    workerId: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=1, ge=1, le=4)
+
+
+class TaskReviewReadyRequest(BaseModel):
+    workerId: str = Field(min_length=1, max_length=200)
+    surface: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=300)
+    summary: str = Field(min_length=1, max_length=20_000)
+    currentState: str = Field(min_length=1, max_length=20_000)
+    nextStart: str = Field(min_length=1, max_length=10_000)
+    reviewUrl: Optional[str] = Field(default=None, max_length=2_000)
+    evidenceUrls: List[str] = Field(default_factory=list)
+
+
+class TaskCompleteRequest(BaseModel):
+    workerId: str = Field(min_length=1, max_length=200)
+    finalSummary: Optional[str] = Field(default=None, max_length=20_000)
+    evidenceUrls: List[str] = Field(default_factory=list)
+
+
+class TaskBlockedRequest(BaseModel):
+    workerId: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=10_000)
+    evidenceUrls: List[str] = Field(default_factory=list)
+
+
+class CreateSessionSummaryRequest(BaseModel):
+    project: str = Field(min_length=1, max_length=200)
+    surface: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=300)
+    summary: str = Field(min_length=1, max_length=20_000)
+    currentState: str = Field(min_length=1, max_length=20_000)
+    nextStart: str = Field(min_length=1, max_length=10_000)
+    materialChange: bool
+    taskId: Optional[str] = Field(default=None, max_length=100)
+    status: str = Field(default="complete", max_length=100)
+    evidenceUrls: List[str] = Field(default_factory=list)
 
 
 class AddGraphLinkRequest(BaseModel):

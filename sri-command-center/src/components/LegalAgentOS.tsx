@@ -197,6 +197,8 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const matters = dashboard?.matters ?? [];
   const connectors = dashboard?.connectors ?? [];
   const readyConnectors = connectors.filter(connector => connector.status === 'READY').length;
+  const stagedConnectors = connectors.filter(connector => connector.status === 'STAGED').length;
+  const gmailConnector = connectors.find(connector => connector.name === 'GMAIL');
 
   return (
     <section className="laos" aria-label="Legal Agent OS">
@@ -379,12 +381,12 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             <div className="laos-channel">
               <b>G</b>
               <span><strong>GMAIL SCANNER</strong><small>jeff@sri-intel.com · LegalOS/Intake</small></span>
-              <em>LABEL READY</em>
+              <em>{gmailConnector?.status ?? 'STAGED'}</em>
             </div>
             <div className="laos-channel">
               <b>M</b>
               <span><strong>MASTER BUILDER</strong><small>New matter, revision, memo, or research</small></span>
-              <em>READY NOW</em>
+              <em>{authConfig?.manualIntakeEnabled ? 'READY' : 'STAGED'}</em>
             </div>
             <div className="laos-notice-policy">
               <span>RECEIPT ACKNOWLEDGEMENT <strong>DRAFT FOR APPROVAL</strong></span>
@@ -472,10 +474,10 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
           </article>
 
           <article className="panel">
-            <div className="panel-h">
-              <span className="t">CONNECTOR READINESS</span>
-              <span className="corner">5 READY · 1 STAGED</span>
-            </div>
+              <div className="panel-h">
+                <span className="t">CONNECTOR READINESS</span>
+                <span className="corner">{readyConnectors} READY · {stagedConnectors} STAGED</span>
+              </div>
             <div className="laos-connectors">
               {connectors.map(connector => (
                 <div key={connector.name}>
