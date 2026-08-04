@@ -177,6 +177,7 @@ def parse_session_summary(file_meta: dict[str, Any], raw: str) -> SessionBrief:
     next_start = _section_excerpt(
         body,
         [
+            "Begin Next Session Here",
             "Resume Instruction",
             "Next Session Opening List",
             "Next Pickup",

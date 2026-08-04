@@ -10,6 +10,7 @@ from app.models import (
     TaskClaimRequest,
     TaskCompleteRequest,
     TaskReviewReadyRequest,
+    WorkerHeartbeatRequest,
 )
 from app.routers.legal import require_operator
 from app.services.dashboard_state import (
@@ -18,6 +19,7 @@ from app.services.dashboard_state import (
 )
 from app.services.orchestrator_auth import require_orchestrator_worker
 from app.services.session_briefs import create_session_summary
+from app.services.orchestrator_presence import record_heartbeat
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -30,8 +32,8 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 def list_tasks():
     try:
         return get_dashboard_store().list_tasks()
-    except DashboardStateUnavailable:
-        return []
+    except DashboardStateUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
 @router.post(
@@ -80,9 +82,22 @@ def patch_task(task_id: str, body: PatchTaskRequest):
 )
 def claim_tasks(body: TaskClaimRequest):
     try:
+        record_heartbeat(body.workerId)
         return get_dashboard_store().claim_tasks(body.workerId, body.limit)
     except DashboardStateUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@router.post(
+    "/heartbeat",
+    dependencies=[Depends(require_orchestrator_worker)],
+)
+def worker_heartbeat(body: WorkerHeartbeatRequest):
+    return {
+        "workerId": body.workerId,
+        "seenAt": record_heartbeat(body.workerId),
+        "status": "connected",
+    }
 
 
 @router.post(

@@ -141,6 +141,16 @@ class OrchestratorTaskApiTests(unittest.TestCase):
         )
         self.assertEqual(401, response.status_code)
 
+    def test_worker_heartbeat_reports_connected(self):
+        response = self.client.post(
+            "/api/tasks/heartbeat",
+            headers=self.runner_headers,
+            json={"workerId": "codex"},
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("connected", response.json()["status"])
+        self.assertEqual("codex", response.json()["workerId"])
+
 
 if __name__ == "__main__":
     unittest.main()

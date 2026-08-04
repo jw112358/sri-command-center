@@ -13,6 +13,7 @@ import {
   getTasks,
   patchNote,
   requeueTask,
+  onOperatorSessionChanged,
 } from '../api/client';
 
 // ─── Markdown renderer (inline, no external dep) ──────────────────────────────
@@ -427,6 +428,11 @@ export function Notebook() {
   const [selId, setSelId]     = useState('');
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [authVersion, setAuthVersion] = useState(0);
+
+  useEffect(() => onOperatorSessionChanged(
+    () => setAuthVersion(current => current + 1),
+  ), []);
 
   const sel = notes.find(n => n.id === selId) ?? notes[0];
 
@@ -453,7 +459,7 @@ export function Notebook() {
       mounted = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [authVersion]);
 
   // ── When selection changes, load full body from API ─────────────────────
   useEffect(() => {
@@ -535,11 +541,11 @@ export function Notebook() {
       {/* ── TASKS tab ────────────────────────────────────────────────────── */}
       {tab === 'tasks' && (
         <div className="nb-tasks-wrap">
-          <TasksPanel />
+          <TasksPanel key={`tasks-${authVersion}`} />
         </div>
       )}
 
-      {tab === 'briefs' && <SessionBriefsPanel />}
+      {tab === 'briefs' && <SessionBriefsPanel key={`briefs-${authVersion}`} />}
 
       {/* ── NOTES tab ────────────────────────────────────────────────────── */}
       {tab === 'notes' && (
