@@ -21,6 +21,7 @@ _cache: list[SessionBrief] = []
 _cache_at = 0.0
 _lock = threading.RLock()
 _CACHE_FILE = Path(__file__).parent.parent.parent / "data" / "session-briefs-cache.json"
+_DRIVE_SCAN_BUDGET_SECONDS = 10
 
 
 def list_session_briefs(limit: int = 50) -> list[SessionBrief]:
@@ -34,6 +35,7 @@ def list_session_briefs(limit: int = 50) -> list[SessionBrief]:
         if not service or not folder_id:
             return _load_bundled_cache()[:safe_limit]
         briefs: list[SessionBrief] = []
+        deadline = time.monotonic() + _DRIVE_SCAN_BUDGET_SECONDS
         try:
             result = service.files().list(
                 q=(
@@ -45,6 +47,8 @@ def list_session_briefs(limit: int = 50) -> list[SessionBrief]:
                 pageSize=safe_limit,
             ).execute()
             for item in result.get("files", []):
+                if time.monotonic() >= deadline:
+                    break
                 if not item.get("name", "").lower().endswith((".md", ".markdown", ".txt")):
                     continue
                 try:
