@@ -1,7 +1,23 @@
 {
   "_meta": {
     "source": "SRI Agent Platform/session-summaries",
-    "purpose": "Empty public fallback. Private session content is loaded only from the authorized Google Drive connection."
+    "purpose": "Bounded continuity fallback used when Google Drive is temporarily unavailable."
   },
-  "briefs": []
+  "briefs": [
+    {
+      "id": "brief:1Cvygw8gA5CqNHpeUI-A7666JsQgRli4j",
+      "sessionId": "platform-session-041",
+      "date": "2026-08-04",
+      "title": "GTD Hardening and Command Center Workflow Release",
+      "project": "Master Builder",
+      "surface": "Codex",
+      "status": "complete",
+      "summary": "Hardened the GTD v2 MLB engine, started the shadow-only NFL engine, repaired Command Center workflows, and restored production Drive-backed dashboard and session-summary persistence.",
+      "currentState": "Command Center commit 3b42866 is live with verified Drive read/write. Dashboard task execution remains paused until a trusted external orchestrator worker is connected.",
+      "nextStart": "Sign into https://sri-command-center.onrender.com and run one controlled production acceptance cycle: create a note, queue a task, confirm the Project Status registry, and verify session 041 appears. Then connect one approved orchestrator worker and prove queue → claim → review-ready summary → Approve & Ship → completed summary end to end. Afterward, verify GTD production commit 12abe422 and begin NFL historical replay.",
+      "sourceUrl": "https://drive.google.com/file/d/1Cvygw8gA5CqNHpeUI-A7666JsQgRli4j/view",
+      "updatedAt": "2026-08-04T19:06:19Z",
+      "taskId": null
+    }
+  ]
 }

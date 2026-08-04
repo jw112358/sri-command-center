@@ -48,6 +48,7 @@ OS_REGISTRY_STATIC: List[Dict[str, Any]] = [
 _cache: Dict[str, Any] = {}
 _cache_ts: Dict[str, float] = {}
 _folder_probe_cache: Dict[str, tuple[float, dict[str, bool]]] = {}
+_DRIVE_HTTP_TIMEOUT_SECONDS = 5
 
 
 def _cached(key: str) -> Optional[Any]:
@@ -65,6 +66,20 @@ def _store(key: str, value: Any) -> Any:
 # ── Drive client (lazy init) ───────────────────────────────────────────────────
 _drive_service = None
 _drive_service_attempted = False
+
+
+def _build_drive_client(credentials):
+    """Build a Drive client whose network calls cannot hang dashboard reads."""
+    from googleapiclient.discovery import build
+
+    service = build(
+        "drive", "v3", credentials=credentials, cache_discovery=False
+    )
+    authorized_http = getattr(service, "_http", None)
+    raw_http = getattr(authorized_http, "http", None)
+    if raw_http is not None:
+        raw_http.timeout = _DRIVE_HTTP_TIMEOUT_SECONDS
+    return service
 
 
 def _get_drive_service():
@@ -85,7 +100,6 @@ def _get_drive_service():
         return _drive_service
     _drive_service_attempted = True
 
-    from googleapiclient.discovery import build
     scope = (
         "https://www.googleapis.com/auth/drive"
         if settings.dashboard_drive_write_enabled
@@ -101,9 +115,7 @@ def _get_drive_service():
             from app.services.legal_google import load_legal_google_credentials
 
             creds = load_legal_google_credentials()
-            _drive_service = build(
-                "drive", "v3", credentials=creds, cache_discovery=False
-            )
+            _drive_service = _build_drive_client(creds)
             log.info("Google Drive: authenticated via configured SRI user grant")
             return _drive_service
         except Exception as user_err:
@@ -118,9 +130,7 @@ def _get_drive_service():
                 info,
                 scopes=[scope],
             )
-            _drive_service = build(
-                "drive", "v3", credentials=creds, cache_discovery=False
-            )
+            _drive_service = _build_drive_client(creds)
             log.info("Google Drive: authenticated via service account JSON secret")
             return _drive_service
         except Exception as json_err:
@@ -131,9 +141,7 @@ def _get_drive_service():
         try:
             import google.auth
             creds, _ = google.auth.default(scopes=[scope])
-            _drive_service = build(
-                "drive", "v3", credentials=creds, cache_discovery=False
-            )
+            _drive_service = _build_drive_client(creds)
             log.info("Google Drive: authenticated via Application Default Credentials")
             return _drive_service
         except Exception as adc_err:
@@ -148,7 +156,7 @@ def _get_drive_service():
                 sa_file,
                 scopes=[scope],
             )
-            _drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
+            _drive_service = _build_drive_client(creds)
             log.info("Google Drive: authenticated via service account JSON")
             return _drive_service
         except Exception as sa_err:
