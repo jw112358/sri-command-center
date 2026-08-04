@@ -6,7 +6,10 @@ from app.services.legal_auth import (
     google_operator_auth_enabled,
     verify_google_credential,
 )
-from app.services.legal_google import legal_runner_config_errors
+from app.services.legal_google import (
+    legal_runner_config_errors,
+    load_legal_google_credentials,
+)
 
 
 class LegalGoogleAuthTests(unittest.TestCase):
@@ -75,6 +78,21 @@ class LegalGoogleAuthTests(unittest.TestCase):
         settings.legal_google_user_token_json = '{"refresh_token":"secret"}'
         settings.legal_google_allow_adc = False
         self.assertEqual([], legal_runner_config_errors())
+
+    @patch("app.services.legal_google.Credentials.from_authorized_user_info")
+    def test_user_grant_refresh_does_not_resubmit_serialized_scopes(self, load):
+        credentials = load.return_value
+        credentials.refresh_token = "refresh-token"
+        settings.legal_google_user_token_json = (
+            '{"client_id":"client","client_secret":"secret",'
+            '"refresh_token":"refresh-token","token_uri":"https://example.test",'
+            '"scopes":["https://www.googleapis.com/auth/drive"]}'
+        )
+
+        self.assertIs(credentials, load_legal_google_credentials())
+        token_info = load.call_args.args[0]
+        self.assertNotIn("scopes", token_info)
+        self.assertNotIn("scopes", load.call_args.kwargs)
 
 
 if __name__ == "__main__":

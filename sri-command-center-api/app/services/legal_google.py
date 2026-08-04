@@ -27,9 +27,14 @@ def load_legal_google_credentials():
             token_info = json.loads(settings.legal_google_user_token_json)
         except json.JSONDecodeError as exc:
             raise RuntimeError("LEGAL_GOOGLE_USER_TOKEN_JSON is invalid JSON") from exc
+        # A Google refresh token already carries the scopes approved during the
+        # consent flow. Resubmitting the serialized scope list during refresh
+        # can make Google's token endpoint reject an otherwise valid grant with
+        # ``invalid_scope``. Let Google preserve the grant's original scopes;
+        # API capability probes remain the source of truth for authorization.
+        token_info.pop("scopes", None)
         credentials = Credentials.from_authorized_user_info(
             token_info,
-            scopes=LEGAL_GOOGLE_SCOPES,
         )
         if not credentials.refresh_token:
             raise RuntimeError("Legal Google user grant has no refresh token")
