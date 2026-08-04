@@ -102,11 +102,24 @@ let _apiReachable: boolean | null = null;
 async function isApiReachable(): Promise<boolean> {
   if (_apiReachable !== null) return _apiReachable;
   try {
-    await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
-    _apiReachable = true;
+    const response = await fetch(`${API_BASE}/api/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    _apiReachable = response.ok || !ALLOW_MOCK_DATA;
+    if (!response.ok && !ALLOW_MOCK_DATA) {
+      console.warn('[SRI] Health probe returned an error — continuing with live API');
+    }
   } catch {
-    _apiReachable = false;
-    console.warn('[SRI] API unreachable — using mock data fallback');
+    if (ALLOW_MOCK_DATA) {
+      _apiReachable = false;
+      console.warn('[SRI] API unreachable — using mock data fallback');
+    } else {
+      // A delayed health probe must not suppress the real production request.
+      // The endpoint call provides the authoritative result, while callers can
+      // preserve their current state if that request also fails.
+      _apiReachable = true;
+      console.warn('[SRI] Health probe unavailable — continuing with live API');
+    }
   }
   // Re-check every 30s
   setTimeout(() => { _apiReachable = null; }, 30_000);
