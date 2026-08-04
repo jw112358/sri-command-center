@@ -47,6 +47,7 @@ export interface Project {
   githubPrCount?: number;
   ciStatus?: 'success' | 'failure' | 'pending' | null;
   completionPct?: number;  // 0-100, passed through to graph node sphere size
+  notes?: string;
 }
 
 export interface Note {
@@ -142,6 +143,13 @@ export interface DashboardCapabilities {
   taskOrchestrationEnabled: boolean;
   sessionSummaryWriteEnabled: boolean;
   maxConcurrentTasks: number;
+  dashboardStateReadVerified: boolean;
+  dashboardStateWriteVerified: boolean;
+  sessionSummaryReadVerified: boolean;
+  sessionSummaryWriteVerified: boolean;
+  orchestratorConnected: boolean;
+  orchestratorLastSeenAt?: string | null;
+  orchestratorWorkers: string[];
 }
 
 export type LegalRequestType =

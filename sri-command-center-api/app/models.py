@@ -186,6 +186,13 @@ class DashboardCapabilities(BaseModel):
     taskOrchestrationEnabled: bool = False
     sessionSummaryWriteEnabled: bool = False
     maxConcurrentTasks: int = 4
+    dashboardStateReadVerified: bool = False
+    dashboardStateWriteVerified: bool = False
+    sessionSummaryReadVerified: bool = False
+    sessionSummaryWriteVerified: bool = False
+    orchestratorConnected: bool = False
+    orchestratorLastSeenAt: Optional[str] = None
+    orchestratorWorkers: List[str] = Field(default_factory=list)
 
 
 # ── Request / response bodies ─────────────────────────────────────────────────
@@ -235,6 +242,10 @@ class PatchTaskRequest(BaseModel):
 class TaskClaimRequest(BaseModel):
     workerId: str = Field(min_length=1, max_length=200)
     limit: int = Field(default=1, ge=1, le=4)
+
+
+class WorkerHeartbeatRequest(BaseModel):
+    workerId: str = Field(min_length=1, max_length=200)
 
 
 class TaskReviewReadyRequest(BaseModel):

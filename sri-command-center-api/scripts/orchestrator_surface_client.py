@@ -47,6 +47,9 @@ def main() -> None:
     claim.add_argument("--worker", required=True)
     claim.add_argument("--limit", type=int, default=1, choices=range(1, 5))
 
+    heartbeat = sub.add_parser("heartbeat")
+    heartbeat.add_argument("--worker", required=True)
+
     for name in ("review-ready", "complete", "blocked"):
         command = sub.add_parser(name)
         command.add_argument("--task", required=True)
@@ -61,6 +64,12 @@ def main() -> None:
             "POST",
             "/api/tasks/claim",
             {"workerId": args.worker, "limit": args.limit},
+        )
+    elif args.command == "heartbeat":
+        result = _request(
+            "POST",
+            "/api/tasks/heartbeat",
+            {"workerId": args.worker},
         )
     elif args.command == "summary":
         result = _request("POST", "/api/session-briefs", _json_file(args.payload))

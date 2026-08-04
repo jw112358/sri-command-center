@@ -19,6 +19,7 @@ import * as mock from '../mock/data';
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 const WS_BASE  = API_BASE.replace(/^http/, 'ws');
 const LEGAL_SESSION_KEY = 'sri.legal.operator-session';
+const LEGAL_SESSION_EVENT = 'sri:operator-session-changed';
 const ALLOW_MOCK_DATA =
   import.meta.env.DEV
   && (import.meta.env.VITE_ALLOW_MOCK_DATA as string | undefined) === 'true';
@@ -52,20 +53,47 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 function getStoredLegalAccessToken(): string | null {
   try {
+    const stored = window.localStorage.getItem(LEGAL_SESSION_KEY);
+    if (stored) {
+      const session = JSON.parse(stored) as { accessToken?: string; expiresAt?: string };
+      if (
+        session.accessToken
+        && session.expiresAt
+        && new Date(session.expiresAt).getTime() > Date.now()
+      ) return session.accessToken;
+      window.localStorage.removeItem(LEGAL_SESSION_KEY);
+    }
+    // Migrate a still-valid legacy tab session once.
     return window.sessionStorage.getItem(LEGAL_SESSION_KEY);
   } catch {
     return null;
   }
 }
 
-function storeLegalAccessToken(token: string): void {
-  window.sessionStorage.setItem(LEGAL_SESSION_KEY, token);
+function storeLegalAccessToken(token: string, expiresAt: string): void {
+  window.localStorage.setItem(
+    LEGAL_SESSION_KEY,
+    JSON.stringify({ accessToken: token, expiresAt }),
+  );
+  window.sessionStorage.removeItem(LEGAL_SESSION_KEY);
+  window.dispatchEvent(new Event(LEGAL_SESSION_EVENT));
 }
 
 export function clearLegalOperatorSession(): void {
   try {
     window.sessionStorage.removeItem(LEGAL_SESSION_KEY);
+    window.localStorage.removeItem(LEGAL_SESSION_KEY);
+    window.dispatchEvent(new Event(LEGAL_SESSION_EVENT));
   } catch { /* browser storage may be unavailable */ }
+}
+
+export function onOperatorSessionChanged(handler: () => void): () => void {
+  window.addEventListener(LEGAL_SESSION_EVENT, handler);
+  window.addEventListener('storage', handler);
+  return () => {
+    window.removeEventListener(LEGAL_SESSION_EVENT, handler);
+    window.removeEventListener('storage', handler);
+  };
 }
 
 // ── Reachability ──────────────────────────────────────────────────────────────
@@ -240,6 +268,13 @@ export async function getDashboardCapabilities(): Promise<DashboardCapabilities>
       taskOrchestrationEnabled: false,
       sessionSummaryWriteEnabled: false,
       maxConcurrentTasks: 4,
+      dashboardStateReadVerified: false,
+      dashboardStateWriteVerified: false,
+      sessionSummaryReadVerified: false,
+      sessionSummaryWriteVerified: false,
+      orchestratorConnected: false,
+      orchestratorLastSeenAt: null,
+      orchestratorWorkers: [],
     };
   }
   return apiFetch<DashboardCapabilities>('/api/capabilities');
@@ -279,7 +314,7 @@ export async function signInLegalOperator(
     method: 'POST',
     body: JSON.stringify({ credential }),
   });
-  storeLegalAccessToken(session.accessToken);
+  storeLegalAccessToken(session.accessToken, session.expiresAt);
   return session;
 }
 

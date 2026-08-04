@@ -93,6 +93,25 @@ Confirm the result and update the canonical record.
         )
         self.assertIn("Confirm the result", brief.nextStart)
 
+    def test_begin_next_session_here_is_used_as_next_start(self):
+        raw = """# Platform Session - Test
+
+## Material Outcome
+Shipped the dashboard repair.
+
+## Begin Next Session Here
+Open the portfolio view and continue with the first unfinished release gate.
+"""
+        brief = parse_session_summary(
+            {
+                "id": "begin-here",
+                "name": "platform-session.md",
+                "modifiedTime": "2026-08-04T12:00:00Z",
+            },
+            raw,
+        )
+        self.assertIn("Open the portfolio view", brief.nextStart)
+
     def test_material_summary_is_written_and_linked_to_task(self):
         original_enabled = settings.dashboard_drive_write_enabled
         original_folder = settings.dashboard_session_summaries_folder_id

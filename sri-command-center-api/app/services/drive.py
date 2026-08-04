@@ -47,6 +47,7 @@ OS_REGISTRY_STATIC: List[Dict[str, Any]] = [
 # ── Simple TTL cache ────────────────────────────────────────────────────────────
 _cache: Dict[str, Any] = {}
 _cache_ts: Dict[str, float] = {}
+_folder_probe_cache: Dict[str, tuple[float, dict[str, bool]]] = {}
 
 
 def _cached(key: str) -> Optional[Any]:
@@ -160,6 +161,35 @@ def _get_drive_service():
 def get_drive_service():
     """Return the configured Drive client without exposing credential details."""
     return _get_drive_service()
+
+
+def probe_folder_access(folder_id: str) -> dict[str, bool]:
+    """Verify that the configured principal can read and add files to a folder."""
+    if not folder_id:
+        return {"read": False, "write": False}
+    cached = _folder_probe_cache.get(folder_id)
+    if cached and time.time() - cached[0] < 60:
+        return dict(cached[1])
+    service = _get_drive_service()
+    if not service:
+        return {"read": False, "write": False}
+    try:
+        metadata = service.files().get(
+            fileId=folder_id,
+            fields="id,capabilities(canAddChildren,canEdit)",
+        ).execute()
+        capabilities = metadata.get("capabilities", {}) or {}
+        result = {
+            "read": bool(metadata.get("id")),
+            "write": bool(
+                capabilities.get("canAddChildren") or capabilities.get("canEdit")
+            ),
+        }
+    except Exception as exc:
+        log.warning("Drive capability probe failed for folder %s: %s", folder_id, exc)
+        result = {"read": False, "write": False}
+    _folder_probe_cache[folder_id] = (time.time(), result)
+    return dict(result)
 
 
 # ── Drive file helpers ────────────────────────────────────────────────────────

@@ -25,6 +25,13 @@ const EMPTY_CAPABILITIES: DashboardCapabilities = {
   taskOrchestrationEnabled: false,
   sessionSummaryWriteEnabled: false,
   maxConcurrentTasks: 4,
+  dashboardStateReadVerified: false,
+  dashboardStateWriteVerified: false,
+  sessionSummaryReadVerified: false,
+  sessionSummaryWriteVerified: false,
+  orchestratorConnected: false,
+  orchestratorLastSeenAt: null,
+  orchestratorWorkers: [],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

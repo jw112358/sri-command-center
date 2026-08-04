@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Tweaks, SystemEvent } from './types';
 import { CommandCenter } from './components/CommandCenter';
 import { Notebook } from './components/Notebook';
+import { PortfolioStatus } from './components/PortfolioStatus';
 import { MissionControl } from './components/MissionControl';
 import { LegalAgentOS } from './components/LegalAgentOS';
 import { OSPlaceholder } from './components/OSPlaceholder';
@@ -85,6 +86,7 @@ interface HeaderProps {
 
 const TABS = [
   'COMMAND CENTER',
+  'PROJECT STATUS',
   'NOTEBOOK',
   'MISSION CONTROL',
   'LEGAL AGENT OS',
@@ -153,7 +155,7 @@ function Shortcuts({ onClose }: { onClose: () => void }) {
         </div>
         <table className="shortcuts-table">
           <tbody>
-            <tr><td>1–8</td><td>Switch tabs</td></tr>
+            <tr><td>1–9</td><td>Switch tabs</td></tr>
             <tr><td>G</td><td>Toggle graph fullscreen</td></tr>
             <tr><td>?</td><td>Toggle this panel</td></tr>
             <tr><td>Esc</td><td>Close overlays</td></tr>
@@ -257,6 +259,7 @@ export default function App() {
         case '6': setTab(5); break;
         case '7': setTab(6); break;
         case '8': setTab(7); break;
+        case '9': setTab(8); break;
         case 'g':
         case 'G':
           if (tab === 0) setGraphFs(f => !f);
@@ -292,28 +295,29 @@ export default function App() {
             pulseSet={pulseSet}
           />
         )}
-        {tab === 1 && <Notebook />}
-        {tab === 2 && <MissionControl />}
-        {tab === 3 && <LegalAgentOS apiConnected={apiConnected} />}
-        {tab === 4 && (
+        {tab === 1 && <PortfolioStatus />}
+        {tab === 2 && <Notebook />}
+        {tab === 3 && <MissionControl />}
+        {tab === 4 && <LegalAgentOS apiConnected={apiConnected} />}
+        {tab === 5 && (
           <OSPlaceholder
             name="Author OS"
             purpose="A future workspace for book development, editorial workflows, publishing coordination, and author operations."
           />
         )}
-        {tab === 5 && (
+        {tab === 6 && (
           <OSPlaceholder
             name="Marketing OS"
             purpose="A future workspace for campaigns, content systems, audience growth, brand operations, and performance reporting."
           />
         )}
-        {tab === 6 && (
+        {tab === 7 && (
           <OSPlaceholder
             name="Event Edge OS"
             purpose="A future workspace for monitored events, market signals, paper-only analysis, and controlled decision support."
           />
         )}
-        {tab === 7 && (
+        {tab === 8 && (
           <OSPlaceholder
             name="Commerce OS"
             purpose="A future workspace for opportunity discovery, product research, commerce operations, and performance tracking."
