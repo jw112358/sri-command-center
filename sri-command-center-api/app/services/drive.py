@@ -71,15 +71,12 @@ def _get_drive_service():
     """Initialize Drive client.
 
     Auth priority:
-      1. Application Default Credentials (ADC) — preferred; works when
-         `gcloud auth application-default login` has been run, or inside
-         GCP/Cloud Run with Workload Identity. No JSON key file needed.
-         Organization policies that block service account key creation
-         (iam.disableServiceAccountKeyCreation) are not a problem here.
-      2. The restricted Jeff user grant configured for Legal Agent OS. This is
-         the production fallback when organization policy blocks service
-         account keys.
-      3. Service account JSON file — used only when
+      1. The restricted Jeff user grant configured for Legal Agent OS. This is
+         the intended production identity on the current Render setup.
+      2. A restricted service account JSON secret, when configured.
+      3. Application Default Credentials (ADC), only after explicit opt-in for
+         local development or a governed workload-identity deployment.
+      4. Service account JSON file — used only when
          GOOGLE_SERVICE_ACCOUNT_FILE is set in .env AND the file exists.
          Skip silently if the org policy blocks key creation.
     """
@@ -95,19 +92,10 @@ def _get_drive_service():
         else "https://www.googleapis.com/auth/drive.readonly"
     )
 
-    # ── Attempt 1: Application Default Credentials ──────────────────────
-    try:
-        import google.auth
-        creds, _ = google.auth.default(
-            scopes=[scope]
-        )
-        _drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
-        log.info("Google Drive: authenticated via Application Default Credentials")
-        return _drive_service
-    except Exception as adc_err:
-        log.debug(f"ADC not available ({adc_err}); trying configured user grant …")
-
-    # ── Attempt 2: Jeff user grant (preferred on current Render setup) ────
+    # ── Attempt 1: Jeff user grant (preferred on the current Render setup) ─
+    # Render can expose ambient credentials that construct successfully but
+    # later fail refresh with invalid_scope. Prefer the deliberately scoped SRI
+    # user grant so dashboard and Legal OS Drive access use the intended owner.
     if settings.legal_google_user_token_json:
         try:
             from app.services.legal_google import load_legal_google_credentials
@@ -121,7 +109,7 @@ def _get_drive_service():
         except Exception as user_err:
             log.warning("Configured SRI user grant could not be loaded: %s", user_err)
 
-    # ── Attempt 3: Service account JSON secret ────────────────────────────
+    # ── Attempt 2: Service account JSON secret ────────────────────────────
     if settings.google_service_account_json:
         try:
             from google.oauth2 import service_account
@@ -137,6 +125,19 @@ def _get_drive_service():
             return _drive_service
         except Exception as json_err:
             log.warning("Service account JSON secret could not be loaded: %s", json_err)
+
+    # ── Attempt 3: Application Default Credentials (explicit opt-in) ─────
+    if settings.legal_google_allow_adc:
+        try:
+            import google.auth
+            creds, _ = google.auth.default(scopes=[scope])
+            _drive_service = build(
+                "drive", "v3", credentials=creds, cache_discovery=False
+            )
+            log.info("Google Drive: authenticated via Application Default Credentials")
+            return _drive_service
+        except Exception as adc_err:
+            log.debug("ADC not available: %s", adc_err)
 
     # ── Attempt 4: Service account JSON file (optional) ──────────────────
     sa_file = getattr(settings, "google_service_account_file", None)
