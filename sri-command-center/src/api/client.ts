@@ -9,6 +9,7 @@
 import type {
   OSPlugin, Agent, LogLine, Project, Note, Task, SessionBrief, GraphData,
   DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
+  MarketingDashboard,
   LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
   LegalSessionStatus,
 } from '../types';
@@ -291,6 +292,17 @@ export async function getDashboardCapabilities(): Promise<DashboardCapabilities>
     };
   }
   return apiFetch<DashboardCapabilities>('/api/capabilities');
+}
+
+export async function getMarketingDashboard(): Promise<MarketingDashboard> {
+  return apiFetch<MarketingDashboard>('/api/marketing/dashboard');
+}
+
+export async function setMarketingApproval(id: string, approved: boolean): Promise<MarketingDashboard> {
+  return apiFetch<MarketingDashboard>(`/api/marketing/approvals/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ approved }),
+  });
 }
 
 export async function getLegalDashboard(): Promise<LegalDashboardState | null> {

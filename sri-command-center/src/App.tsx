@@ -6,6 +6,7 @@ import { PortfolioStatus } from './components/PortfolioStatus';
 import { MissionControl } from './components/MissionControl';
 import { LegalAgentOS } from './components/LegalAgentOS';
 import { OSPlaceholder } from './components/OSPlaceholder';
+import { MarketingOS } from './components/MarketingOS';
 import { getEvents, getHealth, connectWS } from './api/client';
 
 // ─── Default tweaks ───────────────────────────────────────────────────────────
@@ -305,12 +306,7 @@ export default function App() {
             purpose="A future workspace for book development, editorial workflows, publishing coordination, and author operations."
           />
         )}
-        {tab === 6 && (
-          <OSPlaceholder
-            name="Marketing OS"
-            purpose="A future workspace for campaigns, content systems, audience growth, brand operations, and performance reporting."
-          />
-        )}
+        {tab === 6 && <MarketingOS />}
         {tab === 7 && (
           <OSPlaceholder
             name="Event Edge OS"

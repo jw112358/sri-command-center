@@ -152,6 +152,38 @@ export interface DashboardCapabilities {
   orchestratorWorkers: string[];
 }
 
+export interface MarketingConnector {
+  name: string;
+  status: 'READY' | 'STAGED' | 'BLOCKED';
+  detail: string;
+}
+
+export interface MarketingApproval {
+  id: string;
+  platform: string;
+  format: string;
+  content: string;
+  destination: string;
+  requestedAction: 'review-only' | 'publish';
+  status: 'awaiting-approval' | 'approved';
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+}
+
+export interface MarketingDashboard {
+  packetId: string;
+  product: string;
+  launchStage: string;
+  objective: string;
+  destination: string;
+  productionReadiness: number;
+  minimumOperationalCapability: number;
+  measurementSource: string;
+  currentGate: string;
+  connectors: MarketingConnector[];
+  approvals: MarketingApproval[];
+}
+
 export type LegalRequestType =
   | 'new_matter'
   | 'revision'

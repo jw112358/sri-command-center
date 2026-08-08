@@ -195,6 +195,38 @@ class DashboardCapabilities(BaseModel):
     orchestratorWorkers: List[str] = Field(default_factory=list)
 
 
+class MarketingConnector(BaseModel):
+    name: str
+    status: Literal["READY", "STAGED", "BLOCKED"]
+    detail: str
+
+
+class MarketingApproval(BaseModel):
+    id: str
+    platform: str
+    format: str
+    content: str
+    destination: str
+    requestedAction: Literal["review-only", "publish"] = "publish"
+    status: Literal["awaiting-approval", "approved"] = "awaiting-approval"
+    approvedAt: Optional[str] = None
+    approvedBy: Optional[str] = None
+
+
+class MarketingDashboard(BaseModel):
+    packetId: str
+    product: str
+    launchStage: str
+    objective: str
+    destination: str
+    productionReadiness: int
+    minimumOperationalCapability: int
+    measurementSource: str
+    currentGate: str
+    connectors: List[MarketingConnector]
+    approvals: List[MarketingApproval]
+
+
 # ── Request / response bodies ─────────────────────────────────────────────────
 
 class LaunchOSRequest(BaseModel):
@@ -282,6 +314,10 @@ class CreateSessionSummaryRequest(BaseModel):
     taskId: Optional[str] = Field(default=None, max_length=100)
     status: str = Field(default="complete", max_length=100)
     evidenceUrls: List[str] = Field(default_factory=list)
+
+
+class MarketingApprovalRequest(BaseModel):
+    approved: bool = True
 
 
 class AddGraphLinkRequest(BaseModel):
