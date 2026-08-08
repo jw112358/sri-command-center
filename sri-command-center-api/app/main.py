@@ -22,6 +22,7 @@ from app.routers import (
     events,
     graph,
     legal,
+    marketing,
     notes,
     os,
     projects,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(graph.router)
     app.include_router(events.router)
     app.include_router(legal.router)
+    app.include_router(marketing.router)
     app.include_router(tasks.router)
     app.include_router(session_briefs.router)
 

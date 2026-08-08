@@ -30,11 +30,12 @@ def _now() -> str:
 
 def _empty_state() -> dict[str, Any]:
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "updatedAt": _now(),
         "notes": {},
         "tasks": {},
         "projects": {},
+        "marketingApprovals": {},
     }
 
 
@@ -393,6 +394,28 @@ class DashboardStateStore:
             self._save(state)
         return True
 
+    def list_marketing_approvals(self) -> dict[str, dict[str, Any]]:
+        return dict(self._load().get("marketingApprovals", {}))
+
+    def set_marketing_approval(
+        self,
+        approval_id: str,
+        *,
+        approved: bool,
+        approved_by: str,
+    ) -> dict[str, Any]:
+        with self._lock:
+            state = self._load(fresh=True)
+            approvals = state.setdefault("marketingApprovals", {})
+            record = {
+                "status": "approved" if approved else "awaiting-approval",
+                "approvedAt": _now() if approved else None,
+                "approvedBy": approved_by if approved else None,
+            }
+            approvals[approval_id] = record
+            self._save(state)
+            return dict(record)
+
     def _load(self, *, fresh: bool = False) -> dict[str, Any]:
         with self._lock:
             if (
@@ -402,9 +425,9 @@ class DashboardStateStore:
             ):
                 return json.loads(json.dumps(self._cache))
             state = self._read_drive_state()
-            for key in ("notes", "tasks", "projects"):
+            for key in ("notes", "tasks", "projects", "marketingApprovals"):
                 state.setdefault(key, {})
-            state.setdefault("schemaVersion", 2)
+            state.setdefault("schemaVersion", 3)
             self._cache = state
             self._cache_at = time.monotonic()
             return json.loads(json.dumps(state))
@@ -419,7 +442,7 @@ class DashboardStateStore:
         if not service or not parent_id:
             raise DashboardStateUnavailable("Google Drive state is unavailable")
 
-        state["schemaVersion"] = 2
+        state["schemaVersion"] = 3
         state["updatedAt"] = _now()
         payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8")
         media = MediaInMemoryUpload(payload, mimetype="application/json", resumable=False)
