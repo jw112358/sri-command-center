@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="SRI OS Command Center API",
         description="Backend for the SRI OS operator dashboard — Drive + GitHub data, WebSocket live streams.",
-        version="2.0.0",
+        version="2.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -140,6 +140,14 @@ def create_app() -> FastAPI:
         if settings.drive_enabled:
             asyncio.create_task(drive_poll_loop(settings.drive_poll_interval))
             log.info(f"Drive poll loop started (interval={settings.drive_poll_interval}s)")
+        if settings.marketing_worker_enabled and settings.marketing_publishing_enabled:
+            from app.services.marketing_automation import marketing_worker_loop
+
+            asyncio.create_task(marketing_worker_loop())
+            log.info(
+                "Marketing OS publishing worker started "
+                f"(interval={settings.marketing_worker_interval_seconds}s)"
+            )
 
     @app.on_event("shutdown")
     async def shutdown():

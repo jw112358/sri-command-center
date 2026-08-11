@@ -305,6 +305,19 @@ export async function setMarketingApproval(id: string, approved: boolean): Promi
   });
 }
 
+export async function verifyMarketingRoute(platform: string): Promise<void> {
+  await apiFetch(`/api/marketing/routes/${encodeURIComponent(platform)}/verify`, {
+    method: 'POST',
+  });
+}
+
+export async function scheduleMarketingApproval(id: string): Promise<void> {
+  await apiFetch(`/api/marketing/approvals/${encodeURIComponent(id)}/schedule`, {
+    method: 'POST',
+    body: JSON.stringify({ useNextFreeSlot: true }),
+  });
+}
+
 export async function getLegalDashboard(): Promise<LegalDashboardState | null> {
   if (!await isApiReachable()) return null;
   try {

@@ -30,12 +30,16 @@ def _now() -> str:
 
 def _empty_state() -> dict[str, Any]:
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "updatedAt": _now(),
         "notes": {},
         "tasks": {},
         "projects": {},
         "marketingApprovals": {},
+        "marketingRoutes": {},
+        "marketingPublications": {},
+        "marketingMeasurements": {},
+        "marketingLearning": {},
     }
 
 
@@ -416,6 +420,56 @@ class DashboardStateStore:
             self._save(state)
             return dict(record)
 
+    def list_marketing_routes(self) -> dict[str, dict[str, Any]]:
+        return dict(self._load().get("marketingRoutes", {}))
+
+    def set_marketing_route(self, platform: str, record: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            state = self._load(fresh=True)
+            routes = state.setdefault("marketingRoutes", {})
+            routes[platform] = dict(record)
+            self._save(state)
+            return dict(routes[platform])
+
+    def list_marketing_publications(self) -> dict[str, dict[str, Any]]:
+        return dict(self._load().get("marketingPublications", {}))
+
+    def upsert_marketing_publication(
+        self, publication_id: str, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        with self._lock:
+            state = self._load(fresh=True)
+            publications = state.setdefault("marketingPublications", {})
+            publications[publication_id] = dict(record)
+            self._save(state)
+            return dict(publications[publication_id])
+
+    def list_marketing_measurements(self) -> dict[str, dict[str, Any]]:
+        return dict(self._load().get("marketingMeasurements", {}))
+
+    def upsert_marketing_measurement(
+        self, measurement_id: str, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        with self._lock:
+            state = self._load(fresh=True)
+            measurements = state.setdefault("marketingMeasurements", {})
+            measurements[measurement_id] = dict(record)
+            self._save(state)
+            return dict(measurements[measurement_id])
+
+    def list_marketing_learning(self) -> dict[str, dict[str, Any]]:
+        return dict(self._load().get("marketingLearning", {}))
+
+    def upsert_marketing_learning(
+        self, publication_id: str, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        with self._lock:
+            state = self._load(fresh=True)
+            learning = state.setdefault("marketingLearning", {})
+            learning[publication_id] = dict(record)
+            self._save(state)
+            return dict(learning[publication_id])
+
     def _load(self, *, fresh: bool = False) -> dict[str, Any]:
         with self._lock:
             if (
@@ -425,9 +479,18 @@ class DashboardStateStore:
             ):
                 return json.loads(json.dumps(self._cache))
             state = self._read_drive_state()
-            for key in ("notes", "tasks", "projects", "marketingApprovals"):
+            for key in (
+                "notes",
+                "tasks",
+                "projects",
+                "marketingApprovals",
+                "marketingRoutes",
+                "marketingPublications",
+                "marketingMeasurements",
+                "marketingLearning",
+            ):
                 state.setdefault(key, {})
-            state.setdefault("schemaVersion", 3)
+            state.setdefault("schemaVersion", 4)
             self._cache = state
             self._cache_at = time.monotonic()
             return json.loads(json.dumps(state))
@@ -442,7 +505,7 @@ class DashboardStateStore:
         if not service or not parent_id:
             raise DashboardStateUnavailable("Google Drive state is unavailable")
 
-        state["schemaVersion"] = 3
+        state["schemaVersion"] = 4
         state["updatedAt"] = _now()
         payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8")
         media = MediaInMemoryUpload(payload, mimetype="application/json", resumable=False)

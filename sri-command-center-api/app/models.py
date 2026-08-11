@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ── Enumerations ──────────────────────────────────────────────────────────────
@@ -213,6 +213,67 @@ class MarketingApproval(BaseModel):
     approvedBy: Optional[str] = None
 
 
+MarketingPublicationStatus = Literal[
+    "queued", "submitting", "scheduled", "published", "failed", "cancelled"
+]
+
+
+class MarketingRoute(BaseModel):
+    platform: str
+    provider: Literal["blotato"] = "blotato"
+    configured: bool = False
+    verified: bool = False
+    accountLabel: Optional[str] = None
+    verifiedAt: Optional[str] = None
+    detail: str
+
+
+class MarketingPublication(BaseModel):
+    id: str
+    approvalId: str
+    packetId: str
+    platform: str
+    ownerAgent: Literal["Publishing Agent"] = "Publishing Agent"
+    status: MarketingPublicationStatus = "queued"
+    contentChecksum: str
+    scheduledTime: Optional[str] = None
+    useNextFreeSlot: bool = False
+    providerSubmissionId: Optional[str] = None
+    publicUrl: Optional[str] = None
+    error: Optional[str] = None
+    attempts: int = 0
+    createdAt: str
+    updatedAt: str
+    publishedAt: Optional[str] = None
+
+
+class MarketingMeasurement(BaseModel):
+    id: str
+    publicationId: str
+    window: Literal["24h", "72h"]
+    ownerAgent: Literal["Analytics Agent"] = "Analytics Agent"
+    status: Literal["pending", "due", "complete"] = "pending"
+    dueAt: str
+    capturedAt: Optional[str] = None
+    source: Optional[str] = None
+    evidenceUrl: Optional[str] = None
+    impressions: Optional[int] = None
+    reach: Optional[int] = None
+    engagements: Optional[int] = None
+    clicks: Optional[int] = None
+    destinationSessions: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class MarketingLearning(BaseModel):
+    publicationId: str
+    ownerAgent: Literal["Learning Agent"] = "Learning Agent"
+    status: Literal["awaiting-evidence", "provisional", "complete"]
+    summary: str
+    recommendation: str
+    updatedAt: str
+
+
 class MarketingDashboard(BaseModel):
     packetId: str
     product: str
@@ -225,6 +286,10 @@ class MarketingDashboard(BaseModel):
     currentGate: str
     connectors: List[MarketingConnector]
     approvals: List[MarketingApproval]
+    routes: List[MarketingRoute] = Field(default_factory=list)
+    publications: List[MarketingPublication] = Field(default_factory=list)
+    measurements: List[MarketingMeasurement] = Field(default_factory=list)
+    learning: List[MarketingLearning] = Field(default_factory=list)
 
 
 # ── Request / response bodies ─────────────────────────────────────────────────
@@ -318,6 +383,45 @@ class CreateSessionSummaryRequest(BaseModel):
 
 class MarketingApprovalRequest(BaseModel):
     approved: bool = True
+
+
+class MarketingScheduleRequest(BaseModel):
+    scheduledTime: Optional[str] = Field(default=None, max_length=100)
+    useNextFreeSlot: bool = False
+
+
+class MarketingMeasurementRequest(BaseModel):
+    window: Literal["24h", "72h"]
+    source: str = Field(min_length=1, max_length=200)
+    evidenceUrl: str = Field(min_length=1, max_length=2_000)
+    impressions: Optional[int] = Field(default=None, ge=0)
+    reach: Optional[int] = Field(default=None, ge=0)
+    engagements: Optional[int] = Field(default=None, ge=0)
+    clicks: Optional[int] = Field(default=None, ge=0)
+    destinationSessions: Optional[int] = Field(default=None, ge=0)
+    notes: Optional[str] = Field(default=None, max_length=5_000)
+
+    @field_validator("evidenceUrl")
+    @classmethod
+    def evidence_must_be_https(cls, value: str) -> str:
+        if not value.startswith("https://"):
+            raise ValueError("evidenceUrl must use HTTPS")
+        return value
+
+    @model_validator(mode="after")
+    def require_a_metric(self):
+        if all(
+            value is None
+            for value in (
+                self.impressions,
+                self.reach,
+                self.engagements,
+                self.clicks,
+                self.destinationSessions,
+            )
+        ):
+            raise ValueError("at least one verified performance metric is required")
+        return self
 
 
 class AddGraphLinkRequest(BaseModel):
