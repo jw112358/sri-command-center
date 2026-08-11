@@ -31,6 +31,41 @@ def _checksum(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _validated_https_url(value: str, field: str) -> str:
+    url = str(value).strip()
+    if not url.startswith("https://"):
+        raise ValueError(f"{field} must use HTTPS")
+    return url
+
+
+def _media_urls(approval: dict[str, Any]) -> list[str]:
+    return [
+        _validated_https_url(value, "media URL")
+        for value in approval.get("mediaUrls") or []
+    ]
+
+
+def _publication_text(approval: dict[str, Any]) -> str:
+    content = str(approval.get("content") or "").strip()
+    if not content:
+        raise ValueError("approved content is empty")
+    destination = _validated_https_url(
+        str(approval.get("destination") or ""), "destination"
+    )
+    return content if destination in content else f"{content}\n\n{destination}"
+
+
+def _manifest_checksum(approval: dict[str, Any]) -> str:
+    manifest = {
+        "platform": approval.get("platform"),
+        "format": approval.get("format"),
+        "content": _publication_text(approval),
+        "destination": approval.get("destination"),
+        "mediaUrls": _media_urls(approval),
+    }
+    return _checksum(json.dumps(manifest, sort_keys=True, separators=(",", ":")))
+
+
 def _route_fingerprint(route: dict[str, Any]) -> str:
     stable = {
         "accountId": route.get("accountId"),
@@ -194,7 +229,13 @@ class MarketingAutomationService:
         if bool(request.scheduledTime) == bool(request.useNextFreeSlot):
             raise ValueError("choose exactly one scheduling method")
         scheduled_time = _parse_schedule(request.scheduledTime)
-        checksum = _checksum(str(approval["content"]))
+        if approval.get("requestedAction") != "publish":
+            raise ValueError("review-only assets cannot enter the publishing queue")
+        publication_text = _publication_text(approval)
+        if platform == "x" and len(publication_text) > 280:
+            raise ValueError("the final X post exceeds 280 characters")
+        media_urls = _media_urls(approval)
+        checksum = _manifest_checksum(approval)
         for existing in self.store.list_marketing_publications().values():
             if (
                 existing.get("approvalId") == approval["id"]
@@ -211,6 +252,8 @@ class MarketingAutomationService:
             "ownerAgent": "Publishing Agent",
             "status": "queued",
             "contentChecksum": checksum,
+            "destination": approval["destination"],
+            "mediaUrls": media_urls,
             "scheduledTime": scheduled_time,
             "useNextFreeSlot": request.useNextFreeSlot,
             "providerSubmissionId": None,
@@ -283,8 +326,8 @@ class MarketingAutomationService:
         approval = approvals.get(record["approvalId"])
         if not approval or approval.get("status") != "approved":
             raise ValueError("publication approval is missing or was revoked")
-        if _checksum(str(approval["content"])) != record["contentChecksum"]:
-            raise ValueError("approved content changed after the publication was queued")
+        if _manifest_checksum(approval) != record["contentChecksum"]:
+            raise ValueError("approved publish manifest changed after the publication was queued")
         route = settings.marketing_blotato_routes.get(record["platform"], {})
         verification = self.store.list_marketing_routes().get(record["platform"], {})
         if not _verification_is_fresh(verification, route):
@@ -294,8 +337,8 @@ class MarketingAutomationService:
             "post": {
                 "accountId": route["accountId"],
                 "content": {
-                    "text": approval["content"],
-                    "mediaUrls": [],
+                    "text": _publication_text(approval),
+                    "mediaUrls": _media_urls(approval),
                     "platform": platform,
                 },
                 "target": route["target"],

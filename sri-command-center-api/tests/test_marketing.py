@@ -141,6 +141,13 @@ class MarketingApiTests(unittest.TestCase):
         self.assertEqual(200, submitted.status_code)
         self.assertEqual("submitting", submitted.json()[0]["status"])
         self.assertEqual("twitter", blotato.submissions[0]["post"]["content"]["platform"])
+        self.assertEqual([], blotato.submissions[0]["post"]["content"]["mediaUrls"])
+        self.assertTrue(
+            blotato.submissions[0]["post"]["content"]["text"].endswith(
+                "https://gtd-v2-frontend.onrender.com/#/pricing"
+            )
+        )
+        self.assertIn("gtd-v2-frontend.onrender.com", submitted.json()[0]["destination"])
         self.assertNotIn("scheduledTime", blotato.submissions[0])
         self.assertTrue(blotato.submissions[0]["useNextFreeSlot"])
 
@@ -284,6 +291,29 @@ class MarketingApiTests(unittest.TestCase):
         )
         self.assertEqual(409, response.status_code)
         self.assertIn("must be verified", response.text)
+
+    def test_publish_manifest_binds_destination_and_media_and_requires_https(self):
+        from app.services.marketing_automation import (
+            _manifest_checksum,
+            _media_urls,
+            _publication_text,
+        )
+
+        approval = {
+            "platform": "x",
+            "format": "organic short post",
+            "content": "GTD-v2 briefing preview.",
+            "destination": "https://example.com/briefing",
+            "mediaUrls": ["https://example.com/briefing.png"],
+        }
+        self.assertTrue(_publication_text(approval).endswith(approval["destination"]))
+        original = _manifest_checksum(approval)
+        changed = _manifest_checksum(
+            {**approval, "destination": "https://example.com/revised"}
+        )
+        self.assertNotEqual(original, changed)
+        with self.assertRaisesRegex(ValueError, "media URL must use HTTPS"):
+            _media_urls({**approval, "mediaUrls": ["http://example.com/unsafe.png"]})
 
 
 if __name__ == "__main__":
