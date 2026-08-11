@@ -207,6 +207,7 @@ class MarketingApproval(BaseModel):
     format: str
     content: str
     destination: str
+    mediaUrls: List[str] = Field(default_factory=list)
     requestedAction: Literal["review-only", "publish"] = "publish"
     status: Literal["awaiting-approval", "approved"] = "awaiting-approval"
     approvedAt: Optional[str] = None
@@ -236,6 +237,8 @@ class MarketingPublication(BaseModel):
     ownerAgent: Literal["Publishing Agent"] = "Publishing Agent"
     status: MarketingPublicationStatus = "queued"
     contentChecksum: str
+    destination: Optional[str] = None
+    mediaUrls: List[str] = Field(default_factory=list)
     scheduledTime: Optional[str] = None
     useNextFreeSlot: bool = False
     providerSubmissionId: Optional[str] = None

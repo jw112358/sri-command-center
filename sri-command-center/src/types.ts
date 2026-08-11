@@ -164,6 +164,7 @@ export interface MarketingApproval {
   format: string;
   content: string;
   destination: string;
+  mediaUrls: string[];
   requestedAction: 'review-only' | 'publish';
   status: 'awaiting-approval' | 'approved';
   approvedAt?: string | null;
@@ -188,6 +189,8 @@ export interface MarketingPublication {
   ownerAgent: 'Publishing Agent';
   status: 'queued' | 'submitting' | 'scheduled' | 'published' | 'failed' | 'cancelled';
   contentChecksum: string;
+  destination?: string | null;
+  mediaUrls: string[];
   scheduledTime?: string | null;
   useNextFreeSlot: boolean;
   providerSubmissionId?: string | null;

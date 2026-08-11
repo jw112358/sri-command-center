@@ -68,6 +68,8 @@ export function MarketingOS() {
                 <div className="marketing-asset-head"><b>{item.platform.toUpperCase()}</b><span className={'badge ' + (item.status === 'approved' ? 'ACTIVE' : 'IDLE')}>{item.status.replace('-', ' ').toUpperCase()}</span></div>
                 <span className="marketing-format">{item.format}</span>
                 <p>{item.content}</p>
+                <a href={item.destination} target="_blank" rel="noreferrer">PUBLISH DESTINATION ↗</a>
+                <small>{item.mediaUrls.length ? `${item.mediaUrls.length} approved media item${item.mediaUrls.length === 1 ? '' : 's'}` : 'Text-only asset'}</small>
                 <div className="marketing-actions">
                   {item.status === 'approved' && !data.publications.some(publication => publication.approvalId === item.id && !['failed', 'cancelled'].includes(publication.status)) && (
                     <button className="btn solid sm" disabled={saving === item.id} onClick={() => queueAsset(item.id)}>
@@ -113,6 +115,8 @@ export function MarketingOS() {
               <article className="marketing-operation" key={item.id}>
                 <div><b>{item.platform.toUpperCase()}</b><span className={`badge ${item.status === 'published' ? 'ACTIVE' : item.status === 'failed' ? 'BLOCKED' : 'IDLE'}`}>{item.status.toUpperCase()}</span></div>
                 <small>{item.scheduledTime ? `Scheduled ${new Date(item.scheduledTime).toLocaleString()}` : item.useNextFreeSlot ? 'Next verified calendar slot' : 'Awaiting schedule'}</small>
+                {item.destination && <a href={item.destination} target="_blank" rel="noreferrer">OPEN DESTINATION ↗</a>}
+                {item.mediaUrls.length > 0 && <small>{item.mediaUrls.length} media item{item.mediaUrls.length === 1 ? '' : 's'} attached</small>}
                 {item.publicUrl && <a href={item.publicUrl} target="_blank" rel="noreferrer">OPEN PUBLISHED POST ↗</a>}
                 {item.error && <p className="marketing-error">{item.error}</p>}
               </article>
