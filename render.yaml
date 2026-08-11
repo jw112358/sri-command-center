@@ -17,6 +17,18 @@ services:
         sync: false   # separate trusted-worker secret; never exposed to the browser
       - key: ORCHESTRATOR_MAX_CONCURRENT_TASKS
         value: "4"
+      - key: MARKETING_WORKER_ENABLED
+        value: "false" # enable only after an exact Blotato route passes production verification
+      - key: MARKETING_PUBLISHING_ENABLED
+        value: "false" # independent kill switch for all external Marketing OS publishing
+      - key: MARKETING_WORKER_INTERVAL_SECONDS
+        value: "30"
+      - key: MARKETING_BLOTATO_BASE_URL
+        value: https://backend.blotato.com/v2
+      - key: MARKETING_BLOTATO_API_KEY
+        sync: false   # store the Blotato credential in Render; never commit it
+      - key: MARKETING_BLOTATO_ROUTES_JSON
+        sync: false   # exact approved account IDs and provider targets; verify before enabling
       - key: COMMAND_DISPATCH_ENABLED
         value: "false" # enable only after an OS runner consumes and acknowledges commands
       - key: DASHBOARD_SESSION_SUMMARIES_FOLDER_ID
