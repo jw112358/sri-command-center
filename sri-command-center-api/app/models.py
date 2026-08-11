@@ -241,6 +241,7 @@ class MarketingPublication(BaseModel):
     mediaUrls: List[str] = Field(default_factory=list)
     scheduledTime: Optional[str] = None
     useNextFreeSlot: bool = False
+    publishNow: bool = False
     providerSubmissionId: Optional[str] = None
     publicUrl: Optional[str] = None
     error: Optional[str] = None
@@ -391,6 +392,7 @@ class MarketingApprovalRequest(BaseModel):
 class MarketingScheduleRequest(BaseModel):
     scheduledTime: Optional[str] = Field(default=None, max_length=100)
     useNextFreeSlot: bool = False
+    publishNow: bool = False
 
 
 class MarketingMeasurementRequest(BaseModel):

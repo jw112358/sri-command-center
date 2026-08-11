@@ -73,7 +73,7 @@ export function MarketingOS() {
                 <div className="marketing-actions">
                   {item.status === 'approved' && !data.publications.some(publication => publication.approvalId === item.id && !['failed', 'cancelled'].includes(publication.status)) && (
                     <button className="btn solid sm" disabled={saving === item.id} onClick={() => queueAsset(item.id)}>
-                      {saving === item.id ? 'QUEUEING…' : 'QUEUE NEXT VERIFIED SLOT'}
+                      {saving === item.id ? 'QUEUEING…' : 'PUBLISH APPROVED PILOT NOW'}
                     </button>
                   )}
                   <button className={item.status === 'approved' ? 'btn sm' : 'btn solid sm'} disabled={saving === item.id} onClick={() => approve(item.id, item.status !== 'approved')}>
@@ -114,7 +114,7 @@ export function MarketingOS() {
             {data.publications.length === 0 ? <p className="marketing-empty">No asset has entered the publishing queue.</p> : data.publications.map(item => (
               <article className="marketing-operation" key={item.id}>
                 <div><b>{item.platform.toUpperCase()}</b><span className={`badge ${item.status === 'published' ? 'ACTIVE' : item.status === 'failed' ? 'BLOCKED' : 'IDLE'}`}>{item.status.toUpperCase()}</span></div>
-                <small>{item.scheduledTime ? `Scheduled ${new Date(item.scheduledTime).toLocaleString()}` : item.useNextFreeSlot ? 'Next verified calendar slot' : 'Awaiting schedule'}</small>
+                <small>{item.scheduledTime ? `Scheduled ${new Date(item.scheduledTime).toLocaleString()}` : item.useNextFreeSlot ? 'Next verified calendar slot' : item.publishNow ? 'Immediate controlled publication' : 'Awaiting schedule'}</small>
                 {item.destination && <a href={item.destination} target="_blank" rel="noreferrer">OPEN DESTINATION ↗</a>}
                 {item.mediaUrls.length > 0 && <small>{item.mediaUrls.length} media item{item.mediaUrls.length === 1 ? '' : 's'} attached</small>}
                 {item.publicUrl && <a href={item.publicUrl} target="_blank" rel="noreferrer">OPEN PUBLISHED POST ↗</a>}

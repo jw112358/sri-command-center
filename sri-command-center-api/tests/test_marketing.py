@@ -130,7 +130,7 @@ class MarketingApiTests(unittest.TestCase):
         scheduled = self.client.post(
             f"/api/marketing/approvals/{approval_id}/schedule",
             headers=self.headers,
-            json={"useNextFreeSlot": True},
+            json={"publishNow": True},
         )
         self.assertEqual(200, scheduled.status_code)
         publication_id = scheduled.json()["id"]
@@ -149,7 +149,8 @@ class MarketingApiTests(unittest.TestCase):
         )
         self.assertIn("gtd-v2-frontend.onrender.com", submitted.json()[0]["destination"])
         self.assertNotIn("scheduledTime", blotato.submissions[0])
-        self.assertTrue(blotato.submissions[0]["useNextFreeSlot"])
+        self.assertNotIn("useNextFreeSlot", blotato.submissions[0])
+        self.assertTrue(submitted.json()[0]["publishNow"])
 
         published = self.client.post("/api/marketing/worker/run", headers=self.headers)
         self.assertEqual(200, published.status_code)

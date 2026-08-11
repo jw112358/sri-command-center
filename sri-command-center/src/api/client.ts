@@ -314,7 +314,7 @@ export async function verifyMarketingRoute(platform: string): Promise<void> {
 export async function scheduleMarketingApproval(id: string): Promise<void> {
   await apiFetch(`/api/marketing/approvals/${encodeURIComponent(id)}/schedule`, {
     method: 'POST',
-    body: JSON.stringify({ useNextFreeSlot: true }),
+    body: JSON.stringify({ publishNow: true }),
   });
 }
 
