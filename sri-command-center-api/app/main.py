@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="SRI OS Command Center API",
         description="Backend for the SRI OS operator dashboard — Drive + GitHub data, WebSocket live streams.",
-        version="2.1.0",
+        version="2.1.1",
         docs_url="/docs",
         redoc_url="/redoc",
     )

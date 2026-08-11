@@ -61,6 +61,19 @@ class MarketingApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(3, len(response.json()["approvals"]))
         self.assertIn("gtd-v2-frontend.onrender.com", response.json()["destination"])
+        x_route = next(item for item in response.json()["routes"] if item["platform"] == "x")
+        self.assertTrue(x_route["configured"])
+        self.assertFalse(x_route["verified"])
+        self.assertIn("Route configuration loaded", x_route["detail"])
+
+    def test_dashboard_distinguishes_invalid_route_configuration(self):
+        settings.marketing_blotato_routes_json = '{"x":'
+        response = self.client.get("/api/marketing/dashboard", headers=self.headers)
+        self.assertEqual(200, response.status_code)
+        x_route = next(item for item in response.json()["routes"] if item["platform"] == "x")
+        self.assertFalse(x_route["configured"])
+        self.assertFalse(x_route["verified"])
+        self.assertIn("No valid x route configuration", x_route["detail"])
 
     def test_approval_is_durable_and_does_not_publish(self):
         approval_id = "gtd-v2-daily-briefing-launch-001-linkedin"

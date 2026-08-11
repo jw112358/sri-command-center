@@ -130,19 +130,30 @@ class MarketingAutomationService:
         for platform in platforms:
             route = configured.get(platform, {})
             verification = saved.get(platform, {})
-            verified = bool(route) and _verification_is_fresh(verification, route)
+            is_configured = bool(route.get("accountId") and route.get("target"))
+            verified = is_configured and _verification_is_fresh(verification, route)
+            if verified:
+                detail = verification.get("detail") or f"Verified {platform} route."
+            elif is_configured:
+                label = route.get("accountLabel") or platform.upper()
+                detail = (
+                    f"Route configuration loaded for {label}; "
+                    "exact Blotato account verification is required."
+                )
+            else:
+                detail = (
+                    f"No valid {platform} route configuration is loaded. "
+                    "Check MARKETING_BLOTATO_ROUTES_JSON."
+                )
             result.append(
                 {
                     "platform": platform,
                     "provider": "blotato",
-                    "configured": bool(route.get("accountId") and route.get("target")),
+                    "configured": is_configured,
                     "verified": verified,
                     "accountLabel": route.get("accountLabel"),
                     "verifiedAt": verification.get("verifiedAt"),
-                    "detail": (
-                        verification.get("detail")
-                        or "Configure and verify the exact Blotato account route."
-                    ),
+                    "detail": detail,
                 }
             )
         return result
