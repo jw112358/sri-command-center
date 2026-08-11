@@ -193,6 +193,7 @@ export interface MarketingPublication {
   mediaUrls: string[];
   scheduledTime?: string | null;
   useNextFreeSlot: boolean;
+  publishNow: boolean;
   providerSubmissionId?: string | null;
   publicUrl?: string | null;
   error?: string | null;

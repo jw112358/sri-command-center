@@ -226,7 +226,10 @@ class MarketingAutomationService:
         route = next((item for item in self.routes() if item["platform"] == platform), None)
         if not route or not route["configured"] or not route["verified"]:
             raise ValueError("the exact publishing account route must be verified first")
-        if bool(request.scheduledTime) == bool(request.useNextFreeSlot):
+        scheduling_methods = sum(
+            (bool(request.scheduledTime), request.useNextFreeSlot, request.publishNow)
+        )
+        if scheduling_methods != 1:
             raise ValueError("choose exactly one scheduling method")
         scheduled_time = _parse_schedule(request.scheduledTime)
         if approval.get("requestedAction") != "publish":
@@ -256,6 +259,7 @@ class MarketingAutomationService:
             "mediaUrls": media_urls,
             "scheduledTime": scheduled_time,
             "useNextFreeSlot": request.useNextFreeSlot,
+            "publishNow": request.publishNow,
             "providerSubmissionId": None,
             "publicUrl": None,
             "error": None,
@@ -346,7 +350,7 @@ class MarketingAutomationService:
         }
         if record.get("scheduledTime"):
             payload["scheduledTime"] = record["scheduledTime"]
-        else:
+        elif record.get("useNextFreeSlot"):
             payload["useNextFreeSlot"] = True
         submission_id = self.client.submit(payload)
         return {
