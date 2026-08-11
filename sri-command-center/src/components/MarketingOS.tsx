@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MarketingDashboard } from '../types';
-import { getMarketingDashboard, onOperatorSessionChanged, setMarketingApproval } from '../api/client';
+import { getMarketingDashboard, onOperatorSessionChanged, scheduleMarketingApproval, setMarketingApproval, verifyMarketingRoute } from '../api/client';
 
 export function MarketingOS() {
   const [data, setData] = useState<MarketingDashboard | null>(null);
@@ -14,7 +14,9 @@ export function MarketingOS() {
 
   useEffect(() => {
     refresh();
-    return onOperatorSessionChanged(refresh);
+    const timer = window.setInterval(refresh, 30000);
+    const unsubscribe = onOperatorSessionChanged(refresh);
+    return () => { window.clearInterval(timer); unsubscribe(); };
   }, []);
 
   const approve = (id: string, approved: boolean) => {
@@ -23,6 +25,21 @@ export function MarketingOS() {
       setData(value);
       setError('');
     }).catch(() => setError('The approval could not be saved.')).finally(() => setSaving(''));
+  };
+
+  const verifyRoute = (platform: string) => {
+    const key = `route:${platform}`;
+    setSaving(key);
+    verifyMarketingRoute(platform).then(refresh).catch(() => {
+      setError(`The ${platform.toUpperCase()} publishing route could not be verified.`);
+    }).finally(() => setSaving(''));
+  };
+
+  const queueAsset = (id: string) => {
+    setSaving(id);
+    scheduleMarketingApproval(id).then(refresh).catch(() => {
+      setError('The approved asset could not be queued. Verify its exact account route first.');
+    }).finally(() => setSaving(''));
   };
 
   if (!data) return <section className="marketing-os"><div className="panel marketing-empty">{error || 'LOADING MARKETING OS…'}</div></section>;
@@ -52,6 +69,11 @@ export function MarketingOS() {
                 <span className="marketing-format">{item.format}</span>
                 <p>{item.content}</p>
                 <div className="marketing-actions">
+                  {item.status === 'approved' && !data.publications.some(publication => publication.approvalId === item.id && !['failed', 'cancelled'].includes(publication.status)) && (
+                    <button className="btn solid sm" disabled={saving === item.id} onClick={() => queueAsset(item.id)}>
+                      {saving === item.id ? 'QUEUEING…' : 'QUEUE NEXT VERIFIED SLOT'}
+                    </button>
+                  )}
                   <button className={item.status === 'approved' ? 'btn sm' : 'btn solid sm'} disabled={saving === item.id} onClick={() => approve(item.id, item.status !== 'approved')}>
                     {saving === item.id ? 'SAVING…' : item.status === 'approved' ? 'REVOKE APPROVAL' : 'APPROVE FOR CONTROLLED LAUNCH'}
                   </button>
@@ -69,8 +91,53 @@ export function MarketingOS() {
                 <p>{connector.detail}</p>
               </div>
             ))}
+            {data.routes.map(route => (
+              <div className="marketing-connector" key={`route:${route.platform}`}>
+                <div><b>{route.platform.toUpperCase()} ACCOUNT ROUTE</b><span className={'badge ' + (route.verified ? 'ACTIVE' : route.configured ? 'IDLE' : 'BLOCKED')}>{route.verified ? 'VERIFIED' : route.configured ? 'VERIFY' : 'NOT CONFIGURED'}</span></div>
+                <p>{route.detail}</p>
+                {route.configured && !route.verified && <button className="btn sm" disabled={saving === `route:${route.platform}`} onClick={() => verifyRoute(route.platform)}>{saving === `route:${route.platform}` ? 'VERIFYING…' : 'VERIFY EXACT ROUTE'}</button>}
+              </div>
+            ))}
             <div className="marketing-measure"><span className="marketing-label">MEASUREMENT SOURCE</span><p>{data.measurementSource}</p></div>
             {error && <p className="marketing-error">{error}</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="marketing-operations panel">
+        <div className="panel-h"><span className="t">AGENT OPERATIONS</span><span className="corner">PUBLISH → EVIDENCE → LEARN</span></div>
+        <div className="marketing-operations-grid">
+          <div>
+            <span className="marketing-label">PUBLISHING AGENT</span>
+            {data.publications.length === 0 ? <p className="marketing-empty">No asset has entered the publishing queue.</p> : data.publications.map(item => (
+              <article className="marketing-operation" key={item.id}>
+                <div><b>{item.platform.toUpperCase()}</b><span className={`badge ${item.status === 'published' ? 'ACTIVE' : item.status === 'failed' ? 'BLOCKED' : 'IDLE'}`}>{item.status.toUpperCase()}</span></div>
+                <small>{item.scheduledTime ? `Scheduled ${new Date(item.scheduledTime).toLocaleString()}` : item.useNextFreeSlot ? 'Next verified calendar slot' : 'Awaiting schedule'}</small>
+                {item.publicUrl && <a href={item.publicUrl} target="_blank" rel="noreferrer">OPEN PUBLISHED POST ↗</a>}
+                {item.error && <p className="marketing-error">{item.error}</p>}
+              </article>
+            ))}
+          </div>
+          <div>
+            <span className="marketing-label">ANALYTICS AGENT</span>
+            {data.measurements.length === 0 ? <p className="marketing-empty">Evidence windows begin after publication.</p> : data.measurements.map(item => (
+              <article className="marketing-operation" key={item.id}>
+                <div><b>{item.window} EVIDENCE</b><span className={`badge ${item.status === 'complete' ? 'ACTIVE' : item.status === 'due' ? 'BLOCKED' : 'IDLE'}`}>{item.status.toUpperCase()}</span></div>
+                <small>Due {new Date(item.dueAt).toLocaleString()}</small>
+                {item.status === 'complete' && <p>{item.impressions ?? 0} impressions · {item.engagements ?? 0} engagements · {item.clicks ?? 0} clicks · {item.destinationSessions ?? 0} destination sessions</p>}
+                {item.evidenceUrl && <a href={item.evidenceUrl} target="_blank" rel="noreferrer">OPEN VERIFIED EVIDENCE ↗</a>}
+              </article>
+            ))}
+          </div>
+          <div>
+            <span className="marketing-label">LEARNING AGENT</span>
+            {data.learning.length === 0 ? <p className="marketing-empty">Learning reports begin after publication.</p> : data.learning.map(item => (
+              <article className="marketing-operation" key={item.publicationId}>
+                <div><b>{item.status.replace('-', ' ').toUpperCase()}</b></div>
+                <p>{item.summary}</p>
+                <small>{item.recommendation}</small>
+              </article>
+            ))}
           </div>
         </div>
       </div>

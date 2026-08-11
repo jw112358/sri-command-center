@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from app.models import MarketingApproval, MarketingConnector, MarketingDashboard
+from app.config import settings
 from app.services.dashboard_state import DashboardStateStore
+from app.services.marketing_automation import MarketingAutomationService
 
 
 DESTINATION = "https://gtd-v2-frontend.onrender.com/#/pricing"
@@ -64,24 +66,76 @@ def get_dashboard(store: DashboardStateStore) -> MarketingDashboard:
             approvedBy=state.get("approvedBy"),
         ))
     approved = sum(item.status == "approved" for item in approvals)
+    automation = MarketingAutomationService(store)
+    routes = automation.routes()
+    configured_route = any(item["configured"] for item in routes)
+    verified_route = any(item["verified"] for item in routes)
+    publishing_live = bool(
+        settings.marketing_worker_enabled
+        and settings.marketing_publishing_enabled
+        and verified_route
+    )
+    publications = list(store.list_marketing_publications().values())
+    publications.sort(key=lambda item: item["updatedAt"], reverse=True)
+    measurements = list(store.list_marketing_measurements().values())
+    measurements.sort(key=lambda item: item["dueAt"])
+    learning = list(store.list_marketing_learning().values())
+    learning.sort(key=lambda item: item["updatedAt"], reverse=True)
+    connectors = [
+        item
+        for item in CONNECTORS
+        if item.name != "Blotato publishing"
+    ]
+    connectors.insert(
+        3,
+        MarketingConnector(
+            name="Blotato publishing",
+            status="READY" if publishing_live else "STAGED",
+            detail=(
+                "Verified account route and autonomous publishing worker are active."
+                if publishing_live
+                else "API adapter is installed; configure and verify one exact account route before enabling the worker."
+            ),
+        ),
+    )
+    readiness = 92 if publishing_live else 88 if verified_route else 86
+    if any(item.get("status") == "published" for item in publications):
+        readiness = max(readiness, 93)
+    if approved < len(approvals):
+        current_gate = "Operator approval of each controlled-launch asset"
+    elif not configured_route:
+        current_gate = "Configure one exact Blotato account route in the production secret store"
+    elif not verified_route:
+        current_gate = "Fresh verification of the configured Blotato account route"
+    elif not publishing_live:
+        current_gate = "Enable the controlled organic publishing worker after final route review"
+    else:
+        current_gate = "Controlled organic pipeline active; collect verified 24-hour and 72-hour evidence"
     return MarketingDashboard(
         packetId="gtd-v2-daily-briefing-launch-001",
         product="GTD-v2 Daily Briefing",
         launchStage="controlled organic preview",
         objective="Introduce the briefing, validate qualified interest, and establish a measurable path to paid access.",
         destination=DESTINATION,
-        productionReadiness=78,
-        minimumOperationalCapability=90,
+        productionReadiness=readiness,
+        minimumOperationalCapability=92 if publishing_live else 88,
         measurementSource="Verified native platform metrics plus GTD destination sessions",
-        currentGate=(
-            "Fresh publishing-route verification and operator approval of each asset"
-            if approved < len(approvals)
-            else "Fresh publishing-route verification; all launch assets are operator approved"
-        ),
-        connectors=CONNECTORS,
+        currentGate=current_gate,
+        connectors=connectors,
         approvals=approvals,
+        routes=routes,
+        publications=publications,
+        measurements=measurements,
+        learning=learning,
     )
 
 
 def approval_ids() -> set[str]:
     return {item["id"] for item in APPROVALS}
+
+
+def approval_map(store: DashboardStateStore) -> dict[str, dict]:
+    return {
+        item.id: item.model_dump()
+        for item in get_dashboard(store).approvals
+    }

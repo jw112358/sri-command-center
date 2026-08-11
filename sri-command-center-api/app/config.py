@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     orchestrator_runner_token: str = ""
     orchestrator_max_concurrent_tasks: int = 4
 
+    # Marketing OS controlled organic publishing
+    marketing_worker_enabled: bool = False
+    marketing_publishing_enabled: bool = False
+    marketing_worker_interval_seconds: int = 30
+    marketing_blotato_api_key: str = ""
+    marketing_blotato_base_url: str = "https://backend.blotato.com/v2"
+    marketing_blotato_routes_json: str = "{}"
+
     # GitHub
     github_token: str = ""
     github_repos: str = ""          # raw comma-separated string
@@ -84,6 +92,16 @@ class Settings(BaseSettings):
     @property
     def github_enabled(self) -> bool:
         return bool(self.github_token)
+
+    @property
+    def marketing_blotato_routes(self) -> dict:
+        import json
+
+        try:
+            value = json.loads(self.marketing_blotato_routes_json or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return value if isinstance(value, dict) else {}
 
 
 settings = Settings()

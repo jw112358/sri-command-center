@@ -216,7 +216,7 @@ html, body {
 .btn.icon { padding: 6px 8px; }
 
 /* ---- Marketing OS ------------------------------------------------------ */
-.marketing-os { height: 100%; padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+.marketing-os { height: 100%; padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
 .marketing-summary { flex: 0 0 auto; }
 .marketing-summary-body { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)) auto; gap: 12px; align-items: center; padding: 14px; }
 .marketing-summary-body > div { border-right: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 5px; }
@@ -224,19 +224,28 @@ html, body {
 .marketing-label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); }
 .marketing-objective, .marketing-gate { margin: 0; padding: 0 14px 12px; color: var(--white); line-height: 1.45; }
 .marketing-gate { color: var(--gold-dim); }
-.marketing-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr); gap: 14px; }
+.marketing-grid { flex: 0 0 auto; min-height: 390px; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr); gap: 14px; }
 .marketing-assets, .marketing-connectors { overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .marketing-asset, .marketing-connector, .marketing-measure { border: 1px solid var(--border-soft); background: rgba(6,15,30,.45); padding: 12px; border-radius: 4px; }
 .marketing-asset-head, .marketing-connector > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--gold); }
 .marketing-format { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
 .marketing-asset p, .marketing-connector p, .marketing-measure p { color: var(--white); line-height: 1.5; margin: 9px 0; }
 .marketing-actions { display: flex; justify-content: flex-end; }
+.marketing-actions { gap: 8px; flex-wrap: wrap; }
+.marketing-operations { flex: 0 0 auto; }
+.marketing-operations-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 12px; }
+.marketing-operation { border: 1px solid var(--border-soft); background: rgba(6,15,30,.45); padding: 10px; margin-top: 8px; border-radius: 4px; }
+.marketing-operation > div { display: flex; justify-content: space-between; gap: 8px; color: var(--gold); }
+.marketing-operation p { color: var(--white); line-height: 1.4; }
+.marketing-operation small { color: var(--muted); line-height: 1.4; }
+.marketing-operation a { display: inline-block; margin-top: 8px; color: var(--gold); }
 .marketing-empty { padding: 24px; color: var(--muted); }
 .marketing-error { color: var(--err) !important; }
 @media (max-width: 980px) {
   .marketing-os { overflow: auto; }
   .marketing-summary-body { grid-template-columns: 1fr 1fr; }
   .marketing-grid { grid-template-columns: 1fr; overflow: visible; }
+  .marketing-operations-grid { grid-template-columns: 1fr; }
 }
 
 /* status badges */

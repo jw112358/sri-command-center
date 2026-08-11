@@ -170,6 +170,62 @@ export interface MarketingApproval {
   approvedBy?: string | null;
 }
 
+export interface MarketingRoute {
+  platform: string;
+  provider: 'blotato';
+  configured: boolean;
+  verified: boolean;
+  accountLabel?: string | null;
+  verifiedAt?: string | null;
+  detail: string;
+}
+
+export interface MarketingPublication {
+  id: string;
+  approvalId: string;
+  packetId: string;
+  platform: string;
+  ownerAgent: 'Publishing Agent';
+  status: 'queued' | 'submitting' | 'scheduled' | 'published' | 'failed' | 'cancelled';
+  contentChecksum: string;
+  scheduledTime?: string | null;
+  useNextFreeSlot: boolean;
+  providerSubmissionId?: string | null;
+  publicUrl?: string | null;
+  error?: string | null;
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string | null;
+}
+
+export interface MarketingMeasurement {
+  id: string;
+  publicationId: string;
+  window: '24h' | '72h';
+  ownerAgent: 'Analytics Agent';
+  status: 'pending' | 'due' | 'complete';
+  dueAt: string;
+  capturedAt?: string | null;
+  source?: string | null;
+  evidenceUrl?: string | null;
+  impressions?: number | null;
+  reach?: number | null;
+  engagements?: number | null;
+  clicks?: number | null;
+  destinationSessions?: number | null;
+  notes?: string | null;
+}
+
+export interface MarketingLearning {
+  publicationId: string;
+  ownerAgent: 'Learning Agent';
+  status: 'awaiting-evidence' | 'provisional' | 'complete';
+  summary: string;
+  recommendation: string;
+  updatedAt: string;
+}
+
 export interface MarketingDashboard {
   packetId: string;
   product: string;
@@ -182,6 +238,10 @@ export interface MarketingDashboard {
   currentGate: string;
   connectors: MarketingConnector[];
   approvals: MarketingApproval[];
+  routes: MarketingRoute[];
+  publications: MarketingPublication[];
+  measurements: MarketingMeasurement[];
+  learning: MarketingLearning[];
 }
 
 export type LegalRequestType =
