@@ -248,6 +248,85 @@ export interface MarketingDashboard {
   learning: MarketingLearning[];
 }
 
+export interface EventEdgeSignal {
+  id: string;
+  family: string;
+  venue: string;
+  marketTicker: string;
+  eventTicker: string;
+  side: string;
+  entryPrice: number;
+  maxAcceptablePrice?: number | null;
+  observedAt: string;
+  expiresAt: string;
+  status: 'active' | 'stale' | 'settled' | 'blocked';
+  confidence: string;
+  primarySignal: string;
+  supportingSignals: string;
+  contrarySignals: string;
+  riskDecision: string;
+  strategy: string;
+}
+
+export interface EventEdgePaperTrade {
+  id: string;
+  family: string;
+  sequence: number;
+  marketTicker: string;
+  eventTicker: string;
+  eventTitle: string;
+  team: string;
+  side: string;
+  entryPrice: number;
+  status: string;
+  outcome: string;
+  netResult: number;
+  cashPnl?: number | null;
+  strategy: string;
+  enteredAt: string;
+  expiresAt: string;
+}
+
+export interface EventEdgeManualTrade {
+  id: string;
+  signalId?: string | null;
+  family: string;
+  venue: string;
+  marketTicker: string;
+  side: string;
+  entryPrice: number;
+  quantity?: number | null;
+  cashAmount?: number | null;
+  notes: string;
+  status: 'recorded' | 'closed' | 'cancelled';
+  enteredAt: string;
+  createdAt: string;
+  updatedAt: string;
+  executionMode: 'manual_external_record';
+}
+
+export interface EventEdgeDashboard {
+  generatedAt: string;
+  sourceStatus: 'live' | 'stale' | 'offline' | 'partial';
+  sourceDetail: string;
+  paperOnly: boolean;
+  liveExecutionEnabled: boolean;
+  metrics: {
+    settled: number;
+    pending: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    normalizedNet: number;
+    maxDrawdown: number;
+  };
+  signals: EventEdgeSignal[];
+  currentPaperTrades: EventEdgePaperTrade[];
+  recentPaperTrades: EventEdgePaperTrade[];
+  manualTrades: EventEdgeManualTrade[];
+  marketFamilies: string[];
+}
+
 export type LegalRequestType =
   | 'new_matter'
   | 'revision'

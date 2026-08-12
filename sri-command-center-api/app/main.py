@@ -20,6 +20,7 @@ from app.config import settings
 from app.routers import (
     agents,
     events,
+    event_edge,
     graph,
     legal,
     marketing,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(notes.router)
     app.include_router(graph.router)
     app.include_router(events.router)
+    app.include_router(event_edge.router)
     app.include_router(legal.router)
     app.include_router(marketing.router)
     app.include_router(tasks.router)

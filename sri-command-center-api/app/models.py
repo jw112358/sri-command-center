@@ -296,6 +296,87 @@ class MarketingDashboard(BaseModel):
     learning: List[MarketingLearning] = Field(default_factory=list)
 
 
+class EventEdgeSignal(BaseModel):
+    id: str
+    family: str
+    venue: str
+    marketTicker: str
+    eventTicker: str = ""
+    side: str
+    entryPrice: float
+    maxAcceptablePrice: Optional[float] = None
+    observedAt: str = ""
+    expiresAt: str = ""
+    status: Literal["active", "stale", "settled", "blocked"]
+    confidence: str = ""
+    primarySignal: str = ""
+    supportingSignals: str = ""
+    contrarySignals: str = ""
+    riskDecision: str = ""
+    strategy: str = ""
+
+
+class EventEdgePaperTrade(BaseModel):
+    id: str
+    family: str
+    sequence: int = 0
+    marketTicker: str
+    eventTicker: str = ""
+    eventTitle: str = ""
+    team: str = ""
+    side: str
+    entryPrice: float
+    status: str
+    outcome: str = "pending"
+    netResult: float = 0.0
+    cashPnl: Optional[float] = None
+    strategy: str = ""
+    enteredAt: str = ""
+    expiresAt: str = ""
+
+
+class EventEdgeManualTrade(BaseModel):
+    id: str
+    signalId: Optional[str] = None
+    family: str
+    venue: str
+    marketTicker: str
+    side: str
+    entryPrice: float
+    quantity: Optional[float] = None
+    cashAmount: Optional[float] = None
+    notes: str = ""
+    status: Literal["recorded", "closed", "cancelled"] = "recorded"
+    enteredAt: str
+    createdAt: str
+    updatedAt: str
+    executionMode: Literal["manual_external_record"] = "manual_external_record"
+
+
+class EventEdgeMetrics(BaseModel):
+    settled: int = 0
+    pending: int = 0
+    wins: int = 0
+    losses: int = 0
+    winRate: float = 0.0
+    normalizedNet: float = 0.0
+    maxDrawdown: float = 0.0
+
+
+class EventEdgeDashboard(BaseModel):
+    generatedAt: str
+    sourceStatus: Literal["live", "stale", "offline", "partial"]
+    sourceDetail: str
+    paperOnly: bool = True
+    liveExecutionEnabled: bool = False
+    metrics: EventEdgeMetrics
+    signals: List[EventEdgeSignal] = Field(default_factory=list)
+    currentPaperTrades: List[EventEdgePaperTrade] = Field(default_factory=list)
+    recentPaperTrades: List[EventEdgePaperTrade] = Field(default_factory=list)
+    manualTrades: List[EventEdgeManualTrade] = Field(default_factory=list)
+    marketFamilies: List[str] = Field(default_factory=list)
+
+
 # ── Request / response bodies ─────────────────────────────────────────────────
 
 class LaunchOSRequest(BaseModel):
@@ -393,6 +474,25 @@ class MarketingScheduleRequest(BaseModel):
     scheduledTime: Optional[str] = Field(default=None, max_length=100)
     useNextFreeSlot: bool = False
     publishNow: bool = False
+
+
+class EventEdgeManualTradeRequest(BaseModel):
+    signalId: Optional[str] = Field(default=None, max_length=300)
+    family: str = Field(min_length=1, max_length=100)
+    venue: str = Field(min_length=1, max_length=100)
+    marketTicker: str = Field(min_length=1, max_length=300)
+    side: str = Field(min_length=1, max_length=50)
+    entryPrice: float = Field(gt=0)
+    quantity: Optional[float] = Field(default=None, gt=0)
+    cashAmount: Optional[float] = Field(default=None, gt=0)
+    enteredAt: Optional[str] = Field(default=None, max_length=100)
+    notes: str = Field(default="", max_length=5_000)
+
+    @model_validator(mode="after")
+    def require_manual_size(self):
+        if self.quantity is None and self.cashAmount is None:
+            raise ValueError("quantity or cashAmount is required")
+        return self
 
 
 class MarketingMeasurementRequest(BaseModel):

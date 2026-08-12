@@ -16,7 +16,7 @@ from typing import Any, Optional
 from googleapiclient.http import MediaInMemoryUpload
 
 from app.config import settings
-from app.models import Lane, Note, Priority, Project, Task, TaskStatus
+from app.models import EventEdgeManualTrade, Lane, Note, Priority, Project, Task, TaskStatus
 from app.services import drive
 
 
@@ -30,7 +30,7 @@ def _now() -> str:
 
 def _empty_state() -> dict[str, Any]:
     return {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "updatedAt": _now(),
         "notes": {},
         "tasks": {},
@@ -40,6 +40,7 @@ def _empty_state() -> dict[str, Any]:
         "marketingPublications": {},
         "marketingMeasurements": {},
         "marketingLearning": {},
+        "eventEdgeManualTrades": {},
     }
 
 
@@ -401,6 +402,31 @@ class DashboardStateStore:
     def list_marketing_approvals(self) -> dict[str, dict[str, Any]]:
         return dict(self._load().get("marketingApprovals", {}))
 
+    def list_event_edge_manual_trades(self) -> list[EventEdgeManualTrade]:
+        records = [
+            EventEdgeManualTrade(**item)
+            for item in self._load().get("eventEdgeManualTrades", {}).values()
+        ]
+        return sorted(records, key=lambda item: item.enteredAt, reverse=True)
+
+    def create_event_edge_manual_trade(
+        self, record: dict[str, Any]
+    ) -> EventEdgeManualTrade:
+        now = _now()
+        trade = EventEdgeManualTrade(
+            id=f"manual-trade:{uuid.uuid4().hex[:12]}",
+            createdAt=now,
+            updatedAt=now,
+            executionMode="manual_external_record",
+            **record,
+        )
+        with self._lock:
+            state = self._load(fresh=True)
+            trades = state.setdefault("eventEdgeManualTrades", {})
+            trades[trade.id] = trade.model_dump(mode="json")
+            self._save(state)
+        return trade
+
     def set_marketing_approval(
         self,
         approval_id: str,
@@ -488,9 +514,10 @@ class DashboardStateStore:
                 "marketingPublications",
                 "marketingMeasurements",
                 "marketingLearning",
+                "eventEdgeManualTrades",
             ):
                 state.setdefault(key, {})
-            state.setdefault("schemaVersion", 4)
+            state.setdefault("schemaVersion", 5)
             self._cache = state
             self._cache_at = time.monotonic()
             return json.loads(json.dumps(state))
@@ -505,7 +532,7 @@ class DashboardStateStore:
         if not service or not parent_id:
             raise DashboardStateUnavailable("Google Drive state is unavailable")
 
-        state["schemaVersion"] = 4
+        state["schemaVersion"] = 5
         state["updatedAt"] = _now()
         payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8")
         media = MediaInMemoryUpload(payload, mimetype="application/json", resumable=False)

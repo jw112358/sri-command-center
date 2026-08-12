@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     marketing_blotato_base_url: str = "https://backend.blotato.com/v2"
     marketing_blotato_routes_json: str = "{}"
 
+    # Event Edge OS operator surface (Drive-generated paper dashboard)
+    event_edge_dashboard_file_id: str = "1YDzW1dMiR30_YoFLwJXsa0U_-w2TTGh-"
+    event_edge_dashboard_stale_seconds: int = 180
+    event_edge_recent_trade_limit: int = 20
+
     # GitHub
     github_token: str = ""
     github_repos: str = ""          # raw comma-separated string

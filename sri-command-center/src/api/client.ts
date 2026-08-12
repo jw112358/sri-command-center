@@ -10,6 +10,7 @@ import type {
   OSPlugin, Agent, LogLine, Project, Note, Task, SessionBrief, GraphData,
   DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   MarketingDashboard,
+  EventEdgeDashboard, EventEdgeManualTrade,
   LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
   LegalSessionStatus,
 } from '../types';
@@ -296,6 +297,28 @@ export async function getDashboardCapabilities(): Promise<DashboardCapabilities>
 
 export async function getMarketingDashboard(): Promise<MarketingDashboard> {
   return apiFetch<MarketingDashboard>('/api/marketing/dashboard');
+}
+
+export async function getEventEdgeDashboard(): Promise<EventEdgeDashboard> {
+  return apiFetch<EventEdgeDashboard>('/api/event-edge/dashboard');
+}
+
+export async function recordEventEdgeManualTrade(body: {
+  signalId?: string | null;
+  family: string;
+  venue: string;
+  marketTicker: string;
+  side: string;
+  entryPrice: number;
+  quantity?: number | null;
+  cashAmount?: number | null;
+  enteredAt?: string;
+  notes?: string;
+}): Promise<EventEdgeManualTrade> {
+  return apiFetch<EventEdgeManualTrade>('/api/event-edge/manual-trades', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function setMarketingApproval(id: string, approved: boolean): Promise<MarketingDashboard> {

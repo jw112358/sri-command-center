@@ -7,6 +7,7 @@ import { MissionControl } from './components/MissionControl';
 import { LegalAgentOS } from './components/LegalAgentOS';
 import { OSPlaceholder } from './components/OSPlaceholder';
 import { MarketingOS } from './components/MarketingOS';
+import { EventEdgeOS } from './components/EventEdgeOS';
 import { getEvents, getHealth, connectWS } from './api/client';
 
 // ─── Default tweaks ───────────────────────────────────────────────────────────
@@ -307,12 +308,7 @@ export default function App() {
           />
         )}
         {tab === 6 && <MarketingOS />}
-        {tab === 7 && (
-          <OSPlaceholder
-            name="Event Edge OS"
-            purpose="A future workspace for monitored events, market signals, paper-only analysis, and controlled decision support."
-          />
-        )}
+        {tab === 7 && <EventEdgeOS />}
         {tab === 8 && (
           <OSPlaceholder
             name="Commerce OS"
