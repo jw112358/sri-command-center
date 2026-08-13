@@ -181,6 +181,15 @@ class LegalControlPlane:
                 ),
                 status="READY" if automation.get("gmail_scanner_enabled") else "STAGED",
             ),
+            LegalConnectorStatus(
+                name="AI DRAFT + QA",
+                detail=(
+                    f"{automation.get('ai_model', 'OpenAI')} internal worker"
+                    if automation.get("ai_confidential_processing_authorized")
+                    else "Confidential processing is not authorized"
+                ),
+                status="READY" if automation.get("ai_worker_enabled") else "STAGED",
+            ),
         ]
         return LegalDashboardState(
             activeCount=state.get("active_matters", 0),

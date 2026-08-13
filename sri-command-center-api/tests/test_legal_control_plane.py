@@ -53,6 +53,9 @@ class LegalControlPlaneTests(unittest.TestCase):
                     "gmail_scanner_enabled": False,
                     "drive_root_configured": True,
                     "pipeline_paused": True,
+                    "ai_worker_enabled": False,
+                    "ai_confidential_processing_authorized": True,
+                    "ai_model": "gpt-5.6-sol",
                 }
             ),
             self.response(
@@ -72,6 +75,7 @@ class LegalControlPlaneTests(unittest.TestCase):
         self.assertEqual("command_center", state.matters[0].sourceChannel)
         self.assertEqual("READY", state.connectors[0].status)
         self.assertEqual("STAGED", state.connectors[-1].status)
+        self.assertEqual("AI DRAFT + QA", state.connectors[-1].name)
         self.assertTrue(state.paused)
         for call in get.call_args_list:
             self.assertEqual(
