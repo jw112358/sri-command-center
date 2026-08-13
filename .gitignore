@@ -11,6 +11,7 @@ sri-command-center-api/credentials/
 # Frontend
 sri-command-center/node_modules/
 sri-command-center/dist/
+sri-command-center/tsconfig.tsbuildinfo
 
 # Backend
 sri-command-center-api/__pycache__/

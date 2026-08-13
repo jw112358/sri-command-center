@@ -30,7 +30,6 @@ from app.routers import (
     session_briefs,
     tasks,
 )
-from app.services.legal_intake import get_legal_store
 from app.services.legal_auth import authenticate_operator_token
 from app.services.ws_manager import manager, drive_poll_loop
 
@@ -116,29 +115,14 @@ def create_app() -> FastAPI:
         log.info(f"Drive enabled: {settings.drive_enabled}")
         log.info(f"GitHub enabled: {settings.github_enabled}")
         if settings.legal_enabled:
-            get_legal_store()
             log.info(
-                "Legal Agent OS state initialized "
-                f"(capacity={settings.legal_max_active_matters})"
+                "Legal Agent OS canonical control plane: %s",
+                "configured" if settings.legal_control_plane_enabled else "not configured",
             )
         if settings.legal_gmail_enabled:
-            from app.services.legal_google import legal_runner_config_errors
-
-            runner_errors = legal_runner_config_errors()
-            if runner_errors:
-                log.error(
-                    "Legal Agent OS Gmail runner blocked: %s",
-                    "; ".join(runner_errors),
-                )
-            else:
-                from app.workers.legal_intake_runner import gmail_poll_loop
-
-                asyncio.create_task(gmail_poll_loop())
-                log.info(
-                    "Legal Agent OS Gmail runner started "
-                    f"(interval={settings.legal_gmail_poll_interval}s; "
-                    f"shadow={settings.legal_gmail_shadow_mode})"
-                )
+            log.error(
+                "LEGAL_GMAIL_ENABLED is ignored: Gmail polling belongs to the canonical Legal Agent OS API"
+            )
         if settings.drive_enabled:
             asyncio.create_task(drive_poll_loop(settings.drive_poll_interval))
             log.info(f"Drive poll loop started (interval={settings.drive_poll_interval}s)")

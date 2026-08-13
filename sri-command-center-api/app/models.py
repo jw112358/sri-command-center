@@ -537,12 +537,13 @@ class AddGraphLinkRequest(BaseModel):
 # ── Legal Agent OS ───────────────────────────────────────────────────────────
 
 LegalRequestType = Literal[
-    "new_matter", "revision", "strategy_memo", "standalone_research", "unknown"
+    "new_matter", "revision", "strategy_memo", "standalone_research", "transcription", "unknown"
 ]
 LegalMatterStatus = Literal[
     "received", "validating", "needs_operator", "conflict_review", "queued",
-    "researching", "drafting", "quality_review", "pending_approval", "approved",
-    "delivering", "revision_requested", "blocked", "closed",
+    "researching", "drafting", "transcribing", "quality_review", "pending_approval", "approved",
+    "delivering", "revision_requested", "blocked", "monitoring", "dormant",
+    "closure_review", "closed", "archived",
 ]
 
 
@@ -565,7 +566,7 @@ class LegalMatterSummary(BaseModel):
     practiceLane: Literal["civil", "appeal"]
     status: LegalMatterStatus
     version: int
-    sourceChannel: Literal["gmail", "master_builder"]
+    sourceChannel: Literal["gmail", "manual", "command_center", "master_builder"]
     createdAt: str
     updatedAt: str
 

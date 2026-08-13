@@ -37,6 +37,12 @@ services:
         sync: false
       - key: LEGAL_SESSION_SECRET
         generateValue: true
+      - key: LEGAL_OS_API_URL
+        value: https://sri-legal-agent-os-api.onrender.com
+      - key: LEGAL_OS_OPERATOR_TOKEN
+        sync: false   # same server-side operator secret configured on the canonical Legal API
+      - key: LEGAL_GMAIL_ENABLED
+        value: "false" # Command Center never runs a second legal Gmail scanner
       - key: GITHUB_TOKEN
         sync: false   # set in Render dashboard — never commit
       - key: CACHE_TTL

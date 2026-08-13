@@ -153,7 +153,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
     try {
       const next = dashboard?.paused ? await resumeLegalOS() : await pauseLegalOS();
       setDashboard(current => current ? { ...current, paused: next.paused } : current);
-      setOperatorMessage(next.paused ? 'New pipeline work is paused.' : 'Pipeline intake is resumed.');
+      setOperatorMessage(next.paused ? 'Canonical pipeline paused.' : 'Canonical pipeline resumed.');
     } catch (error) {
       setOperatorMessage(error instanceof Error ? error.message : 'Control request failed.');
     } finally {
@@ -302,8 +302,8 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
                   <div>
                     <strong>NO MATTERS ARE RUNNING</strong>
                     <p>
-                      Apply <code>LegalOS/Intake</code> in Gmail or enter a request here.
-                      Revisions, strategy memos, and standalone research use the same route.
+                      Canonical Legal Agent OS state is connected here. Gmail scanning and the
+                      complete Intake v1.1 form remain staged for controlled activation.
                     </p>
                     <button className="btn solid" type="button" onClick={() => setView('intake')}>
                       + OPEN MANUAL INTAKE
@@ -343,7 +343,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
                 <span><strong>EMERGENCY PAUSE</strong><small>Stops new pipeline work.</small></span>
                 <button
                   className="btn danger"
-                  disabled={!operatorSession || operatorBusy}
+                  disabled={!operatorSession || operatorBusy || !dashboard}
                   onClick={handlePause}
                   type="button"
                 >
@@ -435,7 +435,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
                   {!operatorSession
                     ? 'Jeff-only Google sign-in is required.'
                     : !authConfig?.manualIntakeEnabled
-                      ? 'Persistent state and Drive-first intake must be enabled before submission.'
+                      ? 'Complete Intake v1.1 fields and Drive-first archiving are being connected.'
                       : 'Creates a controlled intake event; no external action occurs.'}
                 </small>
                 <button
