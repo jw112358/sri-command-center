@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     # Legal Agent OS
     legal_enabled: bool = True
+    legal_os_api_url: str = ""
+    legal_os_operator_token: str = ""
     legal_state_db: str = "./data/legal-os-state.db"
     legal_state_persistent: bool = False
     legal_max_active_matters: int = 4
@@ -97,6 +99,14 @@ class Settings(BaseSettings):
     @property
     def github_enabled(self) -> bool:
         return bool(self.github_token)
+
+    @property
+    def legal_control_plane_enabled(self) -> bool:
+        return bool(
+            self.legal_enabled
+            and self.legal_os_api_url
+            and self.legal_os_operator_token
+        )
 
     @property
     def marketing_blotato_routes(self) -> dict:

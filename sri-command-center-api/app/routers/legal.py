@@ -26,17 +26,21 @@ from app.services.legal_auth import (
     principal_expires_at,
     verify_google_credential,
 )
-from app.services.legal_intake import get_legal_store
+from app.services.legal_control_plane import (
+    LegalControlPlaneError,
+    get_legal_control_plane,
+)
 
 router = APIRouter(prefix="/api/legal", tags=["legal"])
 
 
 def _manual_intake_ready() -> bool:
-    if not settings.legal_manual_intake_enabled:
-        return False
-    from app.services.legal_google import legal_runner_config_errors
+    # The retired abbreviated form cannot populate canonical Intake v1.1 safely.
+    return False
 
-    return not legal_runner_config_errors()
+
+def _canonical_error(exc: LegalControlPlaneError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
 def require_operator(
@@ -102,7 +106,10 @@ def session(principal: OperatorPrincipal = Depends(require_operator)):
 )
 def dashboard():
     """Jeff-only Legal OS state and connector health."""
-    return get_legal_store().dashboard()
+    try:
+        return get_legal_control_plane().dashboard()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
 
 
 @router.get(
@@ -111,7 +118,10 @@ def dashboard():
     dependencies=[Depends(require_operator)],
 )
 def matters():
-    return get_legal_store().list_matters()
+    try:
+        return get_legal_control_plane().matters()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
 
 
 @router.get(
@@ -121,7 +131,10 @@ def matters():
 )
 def assignments():
     """Jeff-only assignment activity feed."""
-    return get_legal_store().list_assignments()
+    try:
+        return get_legal_control_plane().assignments()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
 
 
 @router.post(
@@ -130,13 +143,10 @@ def assignments():
     dependencies=[Depends(require_operator)],
 )
 def start_assignment(body: LegalAssignmentStartRequest):
-    lease_id = get_legal_store().acquire_lease(body.matterId, body.workerId)
-    if not lease_id:
-        raise HTTPException(
-            409,
-            "Assignment could not start; verify matter state, capacity, and pause status",
-        )
-    return LegalAssignmentStartReceipt(leaseId=lease_id)
+    raise HTTPException(
+        409,
+        "The retired Command Center queue cannot start canonical Legal Agent OS jobs",
+    )
 
 
 @router.post(
@@ -147,9 +157,10 @@ def complete_assignment(
     lease_id: str,
     body: LegalAssignmentCompleteRequest,
 ):
-    if not get_legal_store().release_lease(lease_id, body.nextStatus):
-        raise HTTPException(404, "Active legal assignment not found")
-    return {"completed": True}
+    raise HTTPException(
+        409,
+        "The retired Command Center queue cannot complete canonical Legal Agent OS jobs",
+    )
 
 
 @router.post(
@@ -164,40 +175,20 @@ def manual_intake(body: LegalIntakeRequest):
             503,
             "Manual intake remains staged until durable state and Drive persistence are ready",
         )
-    if body.channel != "master_builder":
-        raise HTTPException(400, "Manual intake channel must be master_builder")
-    store = get_legal_store()
-    receipt = store.ingest(body)
-    if receipt.duplicate:
-        return receipt
-    try:
-        from app.services.legal_artifacts import persist_manual_source
-        from app.services.legal_google import build_legal_drive_service
-
-        persist_manual_source(
-            build_legal_drive_service(),
-            request=body,
-            receipt=receipt,
-        )
-    except Exception as exc:
-        store.block_intake_persistence_failure(
-            matter_id=receipt.matter.matterId,
-            event_id=receipt.eventId,
-        )
-        raise HTTPException(
-            502,
-            "Manual intake could not be preserved in Drive and was safely blocked",
-        ) from exc
-    return receipt
+    raise HTTPException(503, "Complete structured Legal Agent OS intake is not yet enabled")
 
 
 @router.post("/pause", dependencies=[Depends(require_operator)])
 def pause():
-    get_legal_store().set_paused(True)
-    return {"paused": True}
+    try:
+        return {"paused": get_legal_control_plane().set_pipeline_paused(True)}
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
 
 
 @router.post("/resume", dependencies=[Depends(require_operator)])
 def resume():
-    get_legal_store().set_paused(False)
-    return {"paused": False}
+    try:
+        return {"paused": get_legal_control_plane().set_pipeline_paused(False)}
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc

@@ -332,6 +332,7 @@ export type LegalRequestType =
   | 'revision'
   | 'strategy_memo'
   | 'standalone_research'
+  | 'transcription'
   | 'unknown';
 
 export type LegalMatterStatus =
@@ -342,13 +343,18 @@ export type LegalMatterStatus =
   | 'queued'
   | 'researching'
   | 'drafting'
+  | 'transcribing'
   | 'quality_review'
   | 'pending_approval'
   | 'approved'
   | 'delivering'
   | 'revision_requested'
   | 'blocked'
-  | 'closed';
+  | 'monitoring'
+  | 'dormant'
+  | 'closure_review'
+  | 'closed'
+  | 'archived';
 
 export interface LegalMatterSummary {
   matterId: string;
@@ -357,7 +363,7 @@ export interface LegalMatterSummary {
   practiceLane: 'civil' | 'appeal';
   status: LegalMatterStatus;
   version: number;
-  sourceChannel: 'gmail' | 'master_builder';
+  sourceChannel: 'gmail' | 'manual' | 'command_center' | 'master_builder';
   createdAt: string;
   updatedAt: string;
 }
