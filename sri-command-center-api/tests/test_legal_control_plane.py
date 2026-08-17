@@ -143,6 +143,37 @@ class LegalControlPlaneTests(unittest.TestCase):
             post.call_args.kwargs["headers"]["X-Operator-Token"],
         )
 
+    @patch("app.services.legal_control_plane.httpx.post")
+    def test_structured_intake_is_forwarded_without_local_matter_state(self, post):
+        post.return_value = self.response(self.matter(), status_code=201)
+        payload = {
+            "schema_version": "1.1",
+            "channel": "manual",
+            "source_id": "synthetic-intake-001",
+            "request_type": "strategy_memo",
+        }
+
+        receipt = self.control_plane.manual_intake(payload)
+
+        self.assertEqual("MAT-001", receipt.matter.matterId)
+        self.assertEqual("synthetic-intake-001", receipt.eventId)
+        self.assertEqual(
+            "https://legal.example.test/api/intakes/manual",
+            post.call_args.args[0],
+        )
+        self.assertEqual(payload, post.call_args.kwargs["json"])
+        self.assertEqual(
+            "server-secret",
+            post.call_args.kwargs["headers"]["X-Operator-Token"],
+        )
+
+    def test_structured_intake_rejects_noncanonical_schema(self):
+        with self.assertRaises(LegalControlPlaneError) as raised:
+            self.control_plane.manual_intake(
+                {"schema_version": "1.0", "channel": "manual"}
+            )
+        self.assertEqual(422, raised.exception.status_code)
+
 
 if __name__ == "__main__":
     unittest.main()

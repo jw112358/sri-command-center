@@ -11,7 +11,7 @@ import type {
   DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   MarketingDashboard,
   EventEdgeDashboard, EventEdgeManualTrade,
-  LegalIntakeReceipt, LegalOperatorSession, LegalRequestType,
+  LegalIntakeReceipt, LegalOperatorSession,
   LegalSessionStatus,
 } from '../types';
 import * as mock from '../mock/data';
@@ -389,15 +389,12 @@ export async function getLegalOperatorSession(): Promise<LegalSessionStatus | nu
   }
 }
 
-export async function submitLegalIntake(body: {
-  requestType: LegalRequestType;
-  body: string;
-  practiceLane: 'civil' | 'appeal';
-  operatorNotes?: string;
-}): Promise<LegalIntakeReceipt> {
+export async function submitLegalIntake(
+  body: Record<string, unknown>,
+): Promise<LegalIntakeReceipt> {
   return apiFetch<LegalIntakeReceipt>('/api/legal/intake', {
     method: 'POST',
-    body: JSON.stringify({ channel: 'master_builder', ...body }),
+    body: JSON.stringify(body),
   });
 }
 
