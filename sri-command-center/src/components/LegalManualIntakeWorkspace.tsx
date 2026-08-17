@@ -112,7 +112,8 @@ export default function LegalManualIntakeWorkspace({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState({ kind: "working" });
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const lines = (name: string) =>
       String(form.get(name) ?? "").split("\n").map((value) => value.trim()).filter(Boolean);
     const isTranscript = requestType === "transcription";
@@ -185,7 +186,7 @@ export default function LegalManualIntakeWorkspace({
       const result = await submitLegalIntake(payload);
       setState({ kind: "success", message: `${result.matter.matterId} was received and is awaiting intake validation.` });
       onCreated?.();
-      event.currentTarget.reset();
+      formElement.reset();
       setRequestType("new_matter");
       setPracticeLane("civil");
       setIntakeDepth("complete");
