@@ -642,6 +642,35 @@ class LegalConnectorStatus(BaseModel):
     status: Literal["READY", "STAGED", "BLOCKED"]
 
 
+class LegalReviewArtifact(BaseModel):
+    title: str
+    kind: str
+    driveFileId: str
+    sha256: str
+
+
+class LegalReviewPacket(BaseModel):
+    packetId: str
+    matterId: str
+    matterVersion: int
+    status: Literal["awaiting_review", "approved", "revision_requested", "rejected"]
+    summary: str
+    artifacts: List[LegalReviewArtifact]
+    authorities: List[str] = Field(default_factory=list)
+    citationFindings: List[str] = Field(default_factory=list)
+    riskFlags: List[str] = Field(default_factory=list)
+    proposedExternalAction: Optional[str] = None
+    createdAt: str
+    reviewedAt: Optional[str] = None
+    reviewedBy: Optional[str] = None
+    decisionNote: Optional[str] = None
+
+
+class LegalReviewDecisionRequest(BaseModel):
+    decision: Literal["approve", "request_revision", "reject"]
+    note: str = Field(min_length=1, max_length=10_000)
+
+
 class LegalDashboardState(BaseModel):
     activeCount: int
     capacity: int

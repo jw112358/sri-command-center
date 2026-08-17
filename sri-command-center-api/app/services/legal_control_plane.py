@@ -13,6 +13,8 @@ from app.models import (
     LegalDashboardState,
     LegalIntakeReceipt,
     LegalMatterSummary,
+    LegalReviewArtifact,
+    LegalReviewPacket,
 )
 
 
@@ -133,7 +135,7 @@ class LegalControlPlane:
                 "Canonical Legal Agent OS is temporarily unreachable"
             ) from exc
         if response.status_code >= 400:
-            detail = "Canonical Legal Agent OS rejected the structured intake"
+            detail = "Canonical Legal Agent OS rejected the Command Center request"
             try:
                 upstream_detail = response.json().get("detail")
                 if isinstance(upstream_detail, str):
@@ -171,6 +173,33 @@ class LegalControlPlane:
             sourceChannel=record["source_channel"],
             createdAt=record["created_at"],
             updatedAt=record["updated_at"],
+        )
+
+    @staticmethod
+    def _review_packet(record: dict[str, Any]) -> LegalReviewPacket:
+        return LegalReviewPacket(
+            packetId=record["packet_id"],
+            matterId=record["matter_id"],
+            matterVersion=record["matter_version"],
+            status=record["status"],
+            summary=record.get("summary", ""),
+            artifacts=[
+                LegalReviewArtifact(
+                    title=artifact["title"],
+                    kind=artifact["kind"],
+                    driveFileId=artifact["drive_file_id"],
+                    sha256=artifact["sha256"],
+                )
+                for artifact in record.get("artifacts", [])
+            ],
+            authorities=record.get("authorities", []),
+            citationFindings=record.get("citation_findings", []),
+            riskFlags=record.get("risk_flags", []),
+            proposedExternalAction=record.get("proposed_external_action"),
+            createdAt=record["created_at"],
+            reviewedAt=record.get("reviewed_at"),
+            reviewedBy=record.get("reviewed_by"),
+            decisionNote=record.get("decision_note"),
         )
 
     @staticmethod
@@ -246,6 +275,22 @@ class LegalControlPlane:
     def matters(self) -> list[LegalMatterSummary]:
         records = self._request("/api/matters")
         return [self._matter(record) for record in records]
+
+    def review_packets(self) -> list[LegalReviewPacket]:
+        records = self._request("/api/review-packets")
+        return [self._review_packet(record) for record in records]
+
+    def decide_review_packet(
+        self,
+        packet_id: str,
+        decision: str,
+        note: str,
+    ) -> LegalReviewPacket:
+        record = self._post_json(
+            f"/api/review-packets/{packet_id}/decision",
+            {"decision": decision, "note": note},
+        )
+        return self._review_packet(record)
 
     def assignments(self) -> list[LegalAssignmentSummary]:
         jobs = self._request("/api/jobs")
