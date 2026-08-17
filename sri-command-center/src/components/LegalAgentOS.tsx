@@ -7,14 +7,13 @@ import {
   pauseLegalOS,
   resumeLegalOS,
   signInLegalOperator,
-  submitLegalIntake,
 } from '../api/client';
 import type {
   LegalAuthConfig,
   LegalDashboardState,
-  LegalRequestType,
   LegalSessionStatus,
 } from '../types';
+import LegalManualIntakeWorkspace from './LegalManualIntakeWorkspace';
 
 type LegalView = 'overview' | 'matters' | 'intake' | 'review';
 
@@ -61,9 +60,6 @@ function loadGoogleIdentity(): Promise<void> {
 
 export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [view, setView] = useState<LegalView>('overview');
-  const [requestType, setRequestType] = useState<LegalRequestType>('new_matter');
-  const [practiceLane, setPracticeLane] = useState<'civil' | 'appeal'>('civil');
-  const [requestBody, setRequestBody] = useState('');
   const [dashboard, setDashboard] = useState<LegalDashboardState | null>(null);
   const [authConfig, setAuthConfig] = useState<LegalAuthConfig | null>(null);
   const [operatorSession, setOperatorSession] = useState<LegalSessionStatus | null>(null);
@@ -166,28 +162,6 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
     window.google?.accounts.id.disableAutoSelect();
     setOperatorSession(null);
     setOperatorMessage('Operator session closed.');
-  };
-
-  const handleManualIntake = async () => {
-    if (!operatorSession || !authConfig?.manualIntakeEnabled || !requestBody.trim()) return;
-    setOperatorBusy(true);
-    setOperatorMessage('');
-    try {
-      const receipt = await submitLegalIntake({
-        requestType,
-        practiceLane,
-        body: requestBody.trim(),
-      });
-      setRequestBody('');
-      refreshDashboard();
-      setOperatorMessage(
-        `${receipt.matter.matterId} received. Acknowledgement remains pending approval.`,
-      );
-    } catch (error) {
-      setOperatorMessage(error instanceof Error ? error.message : 'Manual intake failed.');
-    } finally {
-      setOperatorBusy(false);
-    }
   };
 
   const activeCount = dashboard?.activeCount ?? 0;
@@ -371,7 +345,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
         </>
       )}
 
-      {(view === 'overview' || view === 'intake') && (
+      {view === 'overview' && (
         <div className="laos-lower-grid">
           <article className="panel">
             <div className="panel-h">
@@ -394,67 +368,41 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             </div>
           </article>
 
-          <article className="panel laos-intake-form">
+          <article className="panel laos-intake-launch">
             <div className="panel-h">
-              <span className="t">MANUAL INTAKE</span>
-              <span className="corner">CONTROLLED ENTRY</span>
+              <span className="t">MATTER LAUNCH WORKSPACE</span>
+              <span className="corner">INTAKE V1.1</span>
             </div>
-            <div className="laos-form-body">
-              <label>
-                REQUEST TYPE
-                <select
-                  value={requestType}
-                  onChange={e => setRequestType(e.target.value as LegalRequestType)}
-                >
-                  <option value="new_matter">NEW MATTER</option>
-                  <option value="revision">REVISION REQUEST</option>
-                  <option value="strategy_memo">STRATEGY MEMO</option>
-                  <option value="standalone_research">LEGAL RESEARCH</option>
-                </select>
-              </label>
-              <label>
-                PRACTICE LANE
-                <select
-                  value={practiceLane}
-                  onChange={e => setPracticeLane(e.target.value as 'civil' | 'appeal')}
-                >
-                  <option value="civil">SC CIVIL</option>
-                  <option value="appeal">SC APPEAL</option>
-                </select>
-              </label>
-              <label>
-                MATTER / REQUEST
-                <textarea
-                  value={requestBody}
-                  onChange={e => setRequestBody(e.target.value)}
-                  placeholder="Identify the parties, request, known deadlines, objectives, and any workflow notes…"
-                />
-              </label>
-              <div className="laos-form-action">
-                <small>
-                  {!operatorSession
-                    ? 'Jeff-only Google sign-in is required.'
-                    : !authConfig?.manualIntakeEnabled
-                      ? 'Complete Intake v1.1 fields and Drive-first archiving are being connected.'
-                      : 'Creates a controlled intake event; no external action occurs.'}
-                </small>
-                <button
-                  className="btn solid"
-                  disabled={
-                    !operatorSession
-                    || !authConfig?.manualIntakeEnabled
-                    || !requestBody.trim()
-                    || operatorBusy
-                  }
-                  onClick={handleManualIntake}
-                  type="button"
-                >
-                  {authConfig?.manualIntakeEnabled ? 'SUBMIT CONTROLLED INTAKE' : 'SUBMIT INTAKE · STAGED'}
-                </button>
-              </div>
+            <div className="laos-intake-launch-body">
+              <p>Open the complete workspace to choose an exact document type, enter matter details, define conflicts and deadlines, or request Cyrano transcription services.</p>
+              <button className="btn solid" type="button" onClick={() => setView('intake')}>
+                OPEN COMPLETE MATTER INTAKE
+              </button>
             </div>
           </article>
         </div>
+      )}
+
+      {view === 'intake' && (
+        <article className="panel laos-intake-workspace">
+          <div className="panel-h">
+            <span className="t">MANUAL MATTER LAUNCH · INTAKE V1.1</span>
+            <span className="corner">SC CIVIL · APPEAL · CYRANO</span>
+          </div>
+          {!operatorSession ? (
+            <div className="laos-intake-locked">
+              <strong>OPERATOR SIGN-IN REQUIRED</strong>
+              <p>Sign in above with jeff@sri-intel.com to unlock the private matter workspace.</p>
+            </div>
+          ) : !authConfig?.manualIntakeEnabled ? (
+            <div className="laos-intake-locked">
+              <strong>CANONICAL INTAKE CONNECTION NOT CONFIGURED</strong>
+              <p>The Command Center will not create local legal state. Configure the Legal Agent OS API connection to enable submission.</p>
+            </div>
+          ) : (
+            <LegalManualIntakeWorkspace operatorEmail={operatorSession.email} onCreated={refreshDashboard} />
+          )}
+        </article>
       )}
 
       {(view === 'overview' || view === 'review') && (

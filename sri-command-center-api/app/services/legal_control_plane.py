@@ -11,6 +11,7 @@ from app.models import (
     LegalAssignmentSummary,
     LegalConnectorStatus,
     LegalDashboardState,
+    LegalIntakeReceipt,
     LegalMatterSummary,
 )
 
@@ -104,6 +105,43 @@ class LegalControlPlane:
                 "Canonical Legal Agent OS rejected the Command Center request",
                 status_code=502,
             )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise LegalControlPlaneError(
+                "Canonical Legal Agent OS returned an invalid response"
+            ) from exc
+
+    def _post_json(self, path: str, payload: dict[str, Any]) -> Any:
+        if not self.configured:
+            raise LegalControlPlaneError(
+                "Canonical Legal Agent OS connection is not configured"
+            )
+        try:
+            response = httpx.post(
+                f"{self.base_url}{path}",
+                headers={
+                    "X-Operator-Token": self.operator_token,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=self.timeout_seconds,
+                follow_redirects=False,
+            )
+        except httpx.RequestError as exc:
+            raise LegalControlPlaneError(
+                "Canonical Legal Agent OS is temporarily unreachable"
+            ) from exc
+        if response.status_code >= 400:
+            detail = "Canonical Legal Agent OS rejected the structured intake"
+            try:
+                upstream_detail = response.json().get("detail")
+                if isinstance(upstream_detail, str):
+                    detail = upstream_detail
+            except (ValueError, AttributeError):
+                pass
+            status_code = response.status_code if response.status_code in {400, 401, 403, 409, 422} else 502
+            raise LegalControlPlaneError(detail, status_code=status_code)
         try:
             return response.json()
         except ValueError as exc:
@@ -223,6 +261,21 @@ class LegalControlPlane:
                 )
             )
         return assignments
+
+    def manual_intake(self, payload: dict[str, Any]) -> LegalIntakeReceipt:
+        if payload.get("schema_version") != "1.1":
+            raise LegalControlPlaneError("Legal intake schema_version must be 1.1", status_code=422)
+        if payload.get("channel") not in {"manual", "command_center"}:
+            raise LegalControlPlaneError("Command Center intake channel is invalid", status_code=422)
+        record = self._post_json("/api/intakes/manual", payload)
+        matter = self._matter(record)
+        return LegalIntakeReceipt(
+            eventId=str(payload.get("source_id", matter.matterId)),
+            matter=matter,
+            duplicate=False,
+            revisionMatched=bool(payload.get("request_type") == "revision"),
+            acknowledgementStatus="draft_pending_approval",
+        )
 
     def set_pipeline_paused(self, paused: bool) -> bool:
         result = self._post(

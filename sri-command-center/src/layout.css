@@ -549,6 +549,78 @@
 }
 .laos-form-action small { color: var(--muted-2); font-size: 8.5px; line-height: 1.4; }
 
+.laos-intake-launch-body,
+.laos-intake-locked { padding: 22px; }
+.laos-intake-launch-body p,
+.laos-intake-locked p { margin: 0 0 16px; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
+.laos-intake-locked strong { color: var(--gold); font-size: 11px; letter-spacing: 1px; }
+.laos-intake-workspace { min-width: 0; }
+.intake-form { padding: 18px; }
+.form-context {
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border-left: 2px solid var(--gold);
+  background: var(--gold-soft);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.intake-form label { display: grid; gap: 6px; color: var(--muted); font-size: 8.5px; letter-spacing: .55px; }
+.intake-form .span-2 { grid-column: 1 / -1; }
+.intake-form input,
+.intake-form select,
+.intake-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-deep);
+  color: var(--white);
+  font: 10.5px var(--font-ui);
+  outline: none;
+}
+.intake-form textarea { resize: vertical; line-height: 1.5; }
+.intake-form input:focus,
+.intake-form select:focus,
+.intake-form textarea:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 2px rgba(255,215,0,.06); }
+.deliverable-options,
+.complete-questionnaire,
+.transcription-options { margin: 20px 0 0; padding: 16px; border: 1px solid var(--border); }
+.deliverable-options legend,
+.complete-questionnaire legend,
+.transcription-options legend { padding: 0 8px; color: var(--gold); font: 13px var(--font-display); letter-spacing: .8px; }
+.deliverable-list { display: grid; gap: 12px; margin-bottom: 12px; }
+.deliverable-card { padding: 14px; border: 1px solid var(--border-soft); background: rgba(255,255,255,.015); }
+.deliverable-heading,
+.questionnaire-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: var(--white); font-size: 9.5px; }
+.secondary-button { min-height: 32px; padding: 0 11px; border: 1px solid var(--border); border-radius: 3px; background: var(--panel-2); color: var(--gold); font: 9px var(--font-ui); cursor: pointer; }
+.intake-form select:disabled { cursor: not-allowed; opacity: .65; }
+.questionnaire-progress { display: grid; grid-template-columns: auto minmax(150px, 1fr); align-items: center; gap: 12px; margin-bottom: 16px; color: var(--muted-2); font-size: 8.5px; }
+.questionnaire-progress progress { width: 100%; height: 7px; accent-color: var(--gold); }
+.questionnaire-section h3 { margin: 4px 0 14px; color: var(--white); font: 18px var(--font-display); }
+.questionnaire-group { grid-column: 1 / -1; padding: 13px; border: 1px solid var(--border-soft); }
+.questionnaire-group legend { padding: 0 6px; color: var(--gold-dim); font-size: 9.5px; }
+.questionnaire-group-row { margin-bottom: 12px; padding: 12px; background: rgba(255,255,255,.018); }
+.questionnaire-check { align-self: start; min-height: 38px; padding-top: 9px; }
+.field-help,
+.sensitive-help { display: block; color: var(--muted-2); font-size: 8px; font-weight: 400; line-height: 1.45; letter-spacing: 0; }
+.sensitive-help { color: #d7a06c; }
+.questionnaire-navigation { display: flex; justify-content: space-between; gap: 12px; margin: 16px 0 10px; }
+.questionnaire-navigation button:disabled { cursor: not-allowed; opacity: .4; }
+.check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.intake-form .check-label { display: flex; align-items: flex-start; gap: 8px; line-height: 1.45; }
+.intake-form .check-label input { width: 14px; min-height: 14px; margin: 0; }
+.transcript-notice { margin: 14px 0 0; color: #ff9a7f; font-size: 9px; }
+.form-submit-row { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+.form-submit-row button { min-height: 40px; padding: 0 17px; border: 1px solid var(--gold); border-radius: 3px; background: var(--gold); color: #080a0c; font: 700 9.5px var(--font-ui); letter-spacing: .7px; cursor: pointer; }
+.form-submit-row button:disabled { cursor: wait; opacity: .55; }
+.form-message { margin: 0; font-size: 9px; }
+.form-message.success { color: var(--gold); }
+.form-message.error { color: #ff8f79; }
+
 .laos-review-empty {
   min-height: 110px;
   padding: 18px;
@@ -606,6 +678,8 @@
   .laos-metrics { grid-template-columns: 1fr; }
   .laos-workflow-steps { grid-template-columns: repeat(2, 1fr); }
   .laos-form-body { grid-template-columns: 1fr; }
+  .form-grid, .check-grid { grid-template-columns: 1fr; }
+  .intake-form .span-2 { grid-column: auto; }
   .laos-form-action { grid-column: 1; align-items: flex-start; flex-direction: column; }
   .laos-connectors { grid-template-columns: 1fr; }
 }

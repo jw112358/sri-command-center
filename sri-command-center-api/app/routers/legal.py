@@ -1,6 +1,8 @@
 """Sanitized dashboard reads and protected Legal Agent OS controls."""
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.config import settings
@@ -13,7 +15,6 @@ from app.models import (
     LegalDashboardState,
     LegalGoogleCredentialRequest,
     LegalIntakeReceipt,
-    LegalIntakeRequest,
     LegalMatterSummary,
     LegalOperatorSession,
     LegalSessionStatus,
@@ -35,8 +36,7 @@ router = APIRouter(prefix="/api/legal", tags=["legal"])
 
 
 def _manual_intake_ready() -> bool:
-    # The retired abbreviated form cannot populate canonical Intake v1.1 safely.
-    return False
+    return get_legal_control_plane().configured
 
 
 def _canonical_error(exc: LegalControlPlaneError) -> HTTPException:
@@ -169,13 +169,16 @@ def complete_assignment(
     status_code=202,
     dependencies=[Depends(require_operator)],
 )
-def manual_intake(body: LegalIntakeRequest):
+def manual_intake(body: dict[str, Any]):
     if not _manual_intake_ready():
         raise HTTPException(
             503,
-            "Manual intake remains staged until durable state and Drive persistence are ready",
+            "Canonical Legal Agent OS intake connection is not configured",
         )
-    raise HTTPException(503, "Complete structured Legal Agent OS intake is not yet enabled")
+    try:
+        return get_legal_control_plane().manual_intake(body)
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
 
 
 @router.post("/pause", dependencies=[Depends(require_operator)])

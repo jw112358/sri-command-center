@@ -1,0 +1,2981 @@
+{
+  "form_id": "legal_matter_intake",
+  "version": "1.1.0",
+  "title": "Complete New Matter Intake — Civil Litigation, Appeals, Transactional, Business & Estate",
+  "description": "Progressive save-and-resume intake. The data contract remains flat and field IDs remain stable; conditional sections control what the submitter sees and hidden required fields are not enforced.",
+  "conventions": {
+    "id_policy": "snake_case, section-prefixed where ambiguity is possible. IDs are immutable across versions.",
+    "types": [
+      "text",
+      "textarea",
+      "select",
+      "multiselect",
+      "date",
+      "datetime",
+      "boolean",
+      "number",
+      "currency",
+      "email",
+      "phone",
+      "file",
+      "group",
+      "signature"
+    ],
+    "group_semantics": "type=group with repeats=true renders as a repeating block; answers stored as an array of objects keyed by subfield id.",
+    "show_if_semantics": "{field, op, value}. op is one of: eq, ne, in, not_in, contains, is_true, is_false, any_of. Absent show_if = always shown.",
+    "required_semantics": "required=true is enforced only when the field is visible. required_if uses the normalized {field, op, value} contract and is enforced only when its condition is met.",
+    "unanswered": "Store explicit null plus a status of 'unknown' | 'not_applicable' | 'to_be_provided' rather than an empty string, so downstream agents can distinguish 'no' from 'not asked'.",
+    "internal_only_semantics": "internal_only=true is populated by the Legal Agent OS and never rendered as a submitter input.",
+    "document_type_semantics": "type=document_type resolves options from contracts/document-output-types.sc.v1.json and stores the stable document code."
+  },
+  "sections": [
+    {
+      "id": "s01_submission",
+      "title": "1. Submission, Submitter & Routing",
+      "purpose": "Establishes who is asking, in what capacity, and what supervision or disclaimers attach to the output.",
+      "fields": [
+        {
+          "id": "intake_id",
+          "label": "Intake ID",
+          "type": "text",
+          "required": false,
+          "help": "System-generated. Leave blank on new submissions.",
+          "internal_only": true
+        },
+        {
+          "id": "submitted_at",
+          "label": "Date/time submitted",
+          "type": "datetime",
+          "required": false,
+          "internal_only": true
+        },
+        {
+          "id": "submitter_name",
+          "label": "Submitter full name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "submitter_email",
+          "label": "Submitter email",
+          "type": "email",
+          "required": true
+        },
+        {
+          "id": "submitter_phone",
+          "label": "Submitter phone",
+          "type": "phone",
+          "required": false
+        },
+        {
+          "id": "submitter_role",
+          "label": "Submitter role/capacity",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Licensed attorney",
+            "Paralegal or legal staff (attorney-supervised)",
+            "In-house counsel",
+            "Nonprofit / legal services staff",
+            "Self-represented person (pro se)",
+            "Court-appointed fiduciary",
+            "Other"
+          ]
+        },
+        {
+          "id": "submitter_bar_number",
+          "label": "Bar number",
+          "type": "text",
+          "required_if": {
+            "field": "submitter_role",
+            "op": "in",
+            "value": [
+              "Licensed attorney",
+              "In-house counsel"
+            ]
+          }
+        },
+        {
+          "id": "submitter_bar_jurisdictions",
+          "label": "Jurisdiction(s) of admission",
+          "type": "text",
+          "required_if": {
+            "field": "submitter_role",
+            "op": "in",
+            "value": [
+              "Licensed attorney",
+              "In-house counsel"
+            ]
+          },
+          "help": "List every state and federal court where admitted and in good standing."
+        },
+        {
+          "id": "submitter_firm",
+          "label": "Firm / organization",
+          "type": "text",
+          "required": false
+        },
+        {
+          "id": "attorney_of_record",
+          "label": "Is the submitting attorney counsel of record in this matter?",
+          "type": "boolean",
+          "show_if": {
+            "field": "submitter_role",
+            "op": "in",
+            "value": [
+              "Licensed attorney",
+              "In-house counsel"
+            ]
+          }
+        },
+        {
+          "id": "supervising_attorney",
+          "label": "Review attorney or responsible recipient (name, bar no., email)",
+          "type": "text",
+          "help": "Identify the attorney or other responsible recipient who will receive and review the deliverable when applicable. This is routing information, not an attorney-supervision gate."
+        },
+        {
+          "id": "pro_se_acknowledgment",
+          "label": "Pro se acknowledgment",
+          "type": "boolean",
+          "show_if": {
+            "field": "submitter_role",
+            "op": "eq",
+            "value": "Self-represented person (pro se)"
+          },
+          "required_if": {
+            "field": "submitter_role",
+            "op": "eq",
+            "value": "Self-represented person (pro se)"
+          },
+          "help": "I understand this system provides document preparation and research support, not legal advice; no attorney-client relationship is created; and I am responsible for reviewing, verifying, signing and filing anything produced."
+        },
+        {
+          "id": "intake_channel",
+          "label": "Intake channel",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Web form",
+            "Email",
+            "Phone",
+            "Client portal",
+            "API",
+            "Referral",
+            "Walk-in"
+          ]
+        },
+        {
+          "id": "referral_source",
+          "label": "Referral source",
+          "type": "text",
+          "required": false
+        },
+        {
+          "id": "priority",
+          "label": "Priority",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Routine",
+            "Expedited",
+            "Emergency (deadline inside 72 hours)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s02_client",
+      "title": "2. Client / Principal Party",
+      "purpose": "Identifies the person or entity the work is for, and their capacity to act.",
+      "fields": [
+        {
+          "id": "client_is_submitter",
+          "label": "Is the submitter also the client?",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "id": "clients",
+          "label": "Client(s)",
+          "type": "group",
+          "repeats": true,
+          "required": true,
+          "subfields": [
+            {
+              "id": "party_kind",
+              "label": "Individual or entity",
+              "type": "select",
+              "required": true,
+              "options": [
+                "Individual",
+                "Entity",
+                "Trust",
+                "Estate",
+                "Governmental body"
+              ]
+            },
+            {
+              "id": "legal_name",
+              "label": "Full legal name (as it should appear in the caption or on the instrument)",
+              "type": "text",
+              "required": true
+            },
+            {
+              "id": "other_names",
+              "label": "AKA / former names / d/b/a",
+              "type": "text",
+              "required": false
+            },
+            {
+              "id": "is_minor",
+              "label": "Is this party a minor?",
+              "type": "boolean",
+              "required": false,
+              "help": "If yes, expect initials-only treatment in public filings and a guardian/next-friend designation."
+            },
+            {
+              "id": "dob",
+              "label": "Date of birth",
+              "type": "date",
+              "show_if": {
+                "field": "party_kind",
+                "op": "eq",
+                "value": "Individual"
+              },
+              "sensitive": true,
+              "help": "Provide only when the selected deliverable legally requires the full date of birth; otherwise leave blank."
+            },
+            {
+              "id": "entity_type",
+              "label": "Entity type",
+              "type": "select",
+              "show_if": {
+                "field": "party_kind",
+                "op": "eq",
+                "value": "Entity"
+              },
+              "options": [
+                "LLC",
+                "C corporation",
+                "S corporation",
+                "Limited partnership",
+                "General partnership",
+                "LLP",
+                "Nonprofit corporation",
+                "Sole proprietorship",
+                "Series LLC",
+                "Statutory trust",
+                "Foreign entity",
+                "Other"
+              ]
+            },
+            {
+              "id": "formation_state",
+              "label": "State/country of formation",
+              "type": "text",
+              "show_if": {
+                "field": "party_kind",
+                "op": "in",
+                "value": [
+                  "Entity",
+                  "Trust"
+                ]
+              }
+            },
+            {
+              "id": "formation_date",
+              "label": "Formation date",
+              "type": "date",
+              "show_if": {
+                "field": "party_kind",
+                "op": "in",
+                "value": [
+                  "Entity",
+                  "Trust"
+                ]
+              }
+            },
+            {
+              "id": "ein_last4",
+              "label": "EIN (last 4 only)",
+              "type": "text",
+              "show_if": {
+                "field": "party_kind",
+                "op": "in",
+                "value": [
+                  "Entity",
+                  "Trust",
+                  "Estate"
+                ]
+              },
+              "help": "Never collect a full EIN or SSN in this form."
+            },
+            {
+              "id": "good_standing",
+              "label": "Currently in good standing?",
+              "type": "select",
+              "show_if": {
+                "field": "party_kind",
+                "op": "eq",
+                "value": "Entity"
+              },
+              "options": [
+                "Yes",
+                "No",
+                "Unknown",
+                "Administratively dissolved"
+              ]
+            },
+            {
+              "id": "street_address",
+              "label": "Street address",
+              "type": "text",
+              "required": true
+            },
+            {
+              "id": "mailing_address",
+              "label": "Mailing address (if different)",
+              "type": "text"
+            },
+            {
+              "id": "county",
+              "label": "County / parish of residence or principal place of business",
+              "type": "text",
+              "required": true,
+              "help": "Drives venue and, for estates, probate situs."
+            },
+            {
+              "id": "citizenship_state",
+              "label": "State of citizenship / principal place of business",
+              "type": "text",
+              "help": "Required for any diversity-jurisdiction analysis."
+            },
+            {
+              "id": "phone",
+              "label": "Phone",
+              "type": "phone"
+            },
+            {
+              "id": "email",
+              "label": "Email",
+              "type": "email"
+            },
+            {
+              "id": "preferred_contact",
+              "label": "Preferred contact method",
+              "type": "select",
+              "options": [
+                "Email",
+                "Phone",
+                "Text",
+                "Mail",
+                "Portal"
+              ]
+            },
+            {
+              "id": "language_needs",
+              "label": "Language / interpreter or accessibility needs",
+              "type": "text"
+            },
+            {
+              "id": "capacity",
+              "label": "Capacity in which this party acts",
+              "type": "select",
+              "options": [
+                "Individually",
+                "Executor / personal representative",
+                "Administrator",
+                "Trustee",
+                "Guardian / conservator",
+                "Next friend",
+                "Attorney-in-fact (POA)",
+                "Corporate officer",
+                "Managing member",
+                "General partner",
+                "Receiver",
+                "Other"
+              ]
+            },
+            {
+              "id": "authority_document",
+              "label": "Document establishing that authority (letters testamentary, trust, POA, resolution)",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "client_role_in_matter",
+          "label": "Client's role in the matter",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Plaintiff",
+            "Defendant",
+            "Petitioner",
+            "Respondent",
+            "Counterclaim-plaintiff",
+            "Counterclaim-defendant",
+            "Third-party plaintiff",
+            "Third-party defendant",
+            "Intervenor",
+            "Appellant",
+            "Appellee / respondent on appeal",
+            "Judgment creditor",
+            "Judgment debtor",
+            "Non-party subpoena recipient",
+            "Amicus",
+            "Buyer / purchaser",
+            "Seller",
+            "Lender",
+            "Borrower",
+            "Landlord",
+            "Tenant",
+            "Licensor",
+            "Licensee",
+            "Employer",
+            "Employee / contractor",
+            "Grantor / settlor",
+            "Trustee",
+            "Beneficiary",
+            "Testator",
+            "Personal representative",
+            "Member / shareholder",
+            "Not yet a party — pre-filing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s03_conflicts",
+      "title": "3. Adverse-Party & Engagement Screening",
+      "purpose": "Collects names for SRI's internal engagement-risk screen. It does not represent a law firm's professional-responsibility conflict clearance.",
+      "fields": [
+        {
+          "id": "adverse_parties",
+          "label": "Adverse / opposing parties",
+          "type": "group",
+          "repeats": true,
+          "required": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "id": "party_kind",
+              "label": "Individual or entity",
+              "type": "select",
+              "options": [
+                "Individual",
+                "Entity",
+                "Governmental body",
+                "Unknown"
+              ]
+            },
+            {
+              "id": "relationship",
+              "label": "Relationship to the client / role in matter",
+              "type": "text"
+            },
+            {
+              "id": "counsel_name",
+              "label": "Their counsel (name)",
+              "type": "text"
+            },
+            {
+              "id": "counsel_firm",
+              "label": "Their counsel (firm)",
+              "type": "text"
+            },
+            {
+              "id": "counsel_email",
+              "label": "Their counsel (email)",
+              "type": "email"
+            },
+            {
+              "id": "counsel_bar_no",
+              "label": "Their counsel (bar number)",
+              "type": "text"
+            },
+            {
+              "id": "represented",
+              "label": "Represented or pro se?",
+              "type": "select",
+              "options": [
+                "Represented",
+                "Pro se",
+                "Unknown"
+              ],
+              "help": "Drives permissible-contact rules for any correspondence we draft."
+            }
+          ]
+        },
+        {
+          "id": "related_nonparties",
+          "label": "Related non-parties, affiliates, insurers, guarantors, co-owners",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text"
+            },
+            {
+              "id": "relationship",
+              "label": "Relationship",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "prior_counsel",
+          "label": "Prior or current counsel for the client on this matter",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name / firm",
+              "type": "text"
+            },
+            {
+              "id": "dates",
+              "label": "Dates of representation",
+              "type": "text"
+            },
+            {
+              "id": "still_of_record",
+              "label": "Still counsel of record?",
+              "type": "boolean"
+            },
+            {
+              "id": "withdrawal_status",
+              "label": "Withdrawal / substitution status",
+              "type": "text"
+            },
+            {
+              "id": "fee_dispute_or_lien",
+              "label": "Any fee dispute, charging lien, or file-retention issue?",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "prior_relationship_with_us",
+          "label": "Has any party here previously worked with our organization?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "No",
+            "Yes — the client",
+            "Yes — an adverse party",
+            "Yes — both",
+            "Unknown"
+          ]
+        },
+        {
+          "id": "prior_relationship_detail",
+          "label": "Explain",
+          "type": "textarea",
+          "show_if": {
+            "field": "prior_relationship_with_us",
+            "op": "not_in",
+            "value": [
+              "No"
+            ]
+          }
+        },
+        {
+          "id": "conflict_waiver_status",
+          "label": "Conflict waiver status",
+          "type": "select",
+          "options": [
+            "Not needed",
+            "Needed — not yet obtained",
+            "Obtained in writing",
+            "Declined"
+          ]
+        },
+        {
+          "id": "conflicts_cleared",
+          "label": "Conflicts cleared (internal)",
+          "type": "boolean",
+          "help": "Hard gate. No substantive work product is released until true.",
+          "internal_only": true
+        },
+        {
+          "id": "conflicts_cleared_by",
+          "label": "Cleared by / date",
+          "type": "text",
+          "internal_only": true
+        }
+      ]
+    },
+    {
+      "id": "s04_classification",
+      "title": "4. Matter Classification",
+      "purpose": "Sets the visibility rules for the rest of the form and routes the matter internally.",
+      "fields": [
+        {
+          "id": "matter_track",
+          "label": "Matter track",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Litigation (state)",
+            "Litigation (federal)",
+            "Litigation (appellate)",
+            "Litigation (administrative / agency)",
+            "Arbitration",
+            "Transactional / business",
+            "Estate planning",
+            "Probate / trust administration",
+            "Advisory or research only",
+            "Mixed — litigation and transactional"
+          ]
+        },
+        {
+          "id": "practice_area",
+          "label": "Practice area(s)",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Contract / commercial",
+            "Business torts",
+            "Civil rights / § 1983",
+            "Employment",
+            "Real property",
+            "Landlord-tenant",
+            "Construction",
+            "Consumer protection",
+            "Debt collection / creditor's rights",
+            "Fraud / misrepresentation",
+            "Defamation",
+            "Personal injury / negligence",
+            "Products liability",
+            "Insurance coverage",
+            "Professional negligence / malpractice",
+            "Partnership & LLC disputes",
+            "Shareholder derivative",
+            "Trade secrets / restrictive covenants",
+            "Intellectual property",
+            "Administrative / licensing",
+            "Environmental / land use",
+            "Bankruptcy-adjacent",
+            "Entity formation & governance",
+            "M&A / asset or equity purchase",
+            "Financing & securities",
+            "Commercial contracts & licensing",
+            "Real estate transactions",
+            "Nonprofit governance & compliance",
+            "Wills & trusts",
+            "Probate administration",
+            "Trust administration",
+            "Guardianship / conservatorship",
+            "Elder law",
+            "Tax-adjacent",
+            "Other"
+          ]
+        },
+        {
+          "id": "matter_short_name",
+          "label": "Short matter name (internal)",
+          "type": "text",
+          "required": true,
+          "help": "e.g., 'Smith v. Acme — SC Ct. Common Pleas'"
+        },
+        {
+          "id": "client_matter_number",
+          "label": "Client/matter number",
+          "type": "text"
+        },
+        {
+          "id": "one_line_description",
+          "label": "One-sentence description of the matter",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "s05_services",
+      "title": "5. Services / Documents Requested",
+      "purpose": "The controlling instruction set. Everything downstream is validated against this section.",
+      "fields": [
+        {
+          "id": "services_requested",
+          "label": "Service categories requested",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Legal research memorandum",
+            "Case law search and citation verification",
+            "Statutory / regulatory analysis",
+            "Complaint or petition",
+            "Amended pleading",
+            "Answer with affirmative defenses",
+            "Counterclaim / crossclaim / third-party complaint",
+            "Motion — dispositive (motion to dismiss, summary judgment)",
+            "Motion — non-dispositive (compel, protective order, continuance, amend, extension)",
+            "Memorandum of law / supporting brief",
+            "Response or opposition brief",
+            "Reply brief",
+            "Appellate brief",
+            "Petition for writ / extraordinary relief",
+            "Notice of appeal and docketing statement",
+            "Discovery requests (interrogatories, RFPs, RFAs)",
+            "Discovery responses and objections",
+            "Privilege log",
+            "Deposition outline / examination questions",
+            "Subpoena and notice",
+            "Affidavit or declaration",
+            "Proposed order",
+            "Scheduling order / Rule 26(f) report / case management statement",
+            "Settlement agreement and release",
+            "Demand letter",
+            "Litigation correspondence",
+            "Trial documents (witness list, exhibit list, jury instructions, motions in limine)",
+            "Judgment enforcement documents",
+            "Document review and summarization",
+            "Chronology / timeline of events",
+            "Exhibit index and Bates management",
+            "Cite-check and citation-format conformance",
+            "Filing package assembly",
+            "Entity formation documents (articles, certificate)",
+            "Operating agreement / partnership agreement",
+            "Bylaws, resolutions, consents, minutes",
+            "Contract drafting",
+            "Contract review and redline",
+            "NDA / confidentiality agreement",
+            "Employment or independent contractor agreement",
+            "Promissory note / security agreement / guaranty",
+            "Purchase and sale agreement",
+            "Deed, assignment, or bill of sale",
+            "Lease",
+            "Licensing or IP assignment",
+            "Corporate records cleanup / governance audit",
+            "Will",
+            "Revocable or irrevocable trust instrument",
+            "Power of attorney",
+            "Advance directive / healthcare proxy",
+            "Beneficiary designation review",
+            "Probate filings",
+            "Trust administration documents",
+            "Guardianship / conservatorship filings",
+            "Client-facing explanation or plain-language summary",
+            "Other (describe below)"
+          ]
+        },
+        {
+          "id": "services_requested_detail",
+          "label": "Describe exactly what you want produced",
+          "type": "textarea",
+          "required": true,
+          "help": "State each deliverable, in the order you want it, and any specific arguments, provisions, or theories to include or avoid. This field controls if it conflicts with the checkboxes above."
+        },
+        {
+          "id": "deliverables",
+          "label": "Deliverable list",
+          "type": "group",
+          "repeats": true,
+          "required": true,
+          "subfields": [
+            {
+              "id": "title",
+              "label": "Document title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "id": "output_family",
+              "label": "Document family",
+              "type": "select",
+              "required": true,
+              "options_from": "contracts/document-output-types.sc.v1.json#families"
+            },
+            {
+              "id": "doc_type",
+              "label": "Type",
+              "type": "document_type",
+              "required": true,
+              "options_from": "contracts/document-output-types.sc.v1.json#outputs",
+              "help": "Stores the stable jurisdiction-aware document code; the visible label may vary by jurisdiction."
+            },
+            {
+              "id": "recipient",
+              "label": "Filing court or recipient",
+              "type": "text"
+            },
+            {
+              "id": "due_date",
+              "label": "Due date",
+              "type": "date"
+            },
+            {
+              "id": "page_or_word_limit",
+              "label": "Page / word limit",
+              "type": "text"
+            },
+            {
+              "id": "draft_stage",
+              "label": "Stage",
+              "type": "select",
+              "options": [
+                "First draft",
+                "Revision of existing draft",
+                "Final for signature",
+                "Research only — no document"
+              ]
+            },
+            {
+              "id": "who_signs",
+              "label": "Who will sign / file it",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "questions_presented",
+          "label": "Specific legal questions to answer",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "question",
+              "label": "Question",
+              "type": "textarea"
+            },
+            {
+              "id": "why_it_matters",
+              "label": "Why it matters to the outcome",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "desired_outcome",
+          "label": "What outcome is the client trying to achieve?",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "id": "out_of_scope",
+          "label": "Expressly out of scope",
+          "type": "textarea",
+          "help": "Anything you do NOT want touched — e.g., 'do not address the arbitration clause.'"
+        },
+        {
+          "id": "prior_drafts_provided",
+          "label": "Are prior drafts or a prior version attached?",
+          "type": "boolean"
+        },
+        {
+          "id": "exemplar_to_follow",
+          "label": "Exemplar, template, or prior filing to model",
+          "type": "text",
+          "help": "Strongest single lever on output quality. Attach it in Section 9 and name it here."
+        }
+      ]
+    },
+    {
+      "id": "s06_litigation",
+      "title": "6. Litigation Details",
+      "purpose": "Case posture, jurisdiction, claims and deadlines.",
+      "show_if": {
+        "field": "matter_track",
+        "op": "in",
+        "value": [
+          "Litigation (state)",
+          "Litigation (federal)",
+          "Litigation (appellate)",
+          "Litigation (administrative / agency)",
+          "Arbitration",
+          "Mixed — litigation and transactional"
+        ]
+      },
+      "fields": [
+        {
+          "id": "case_status",
+          "label": "Current posture",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Pre-filing / evaluating",
+            "Filed, not yet served",
+            "Served, responsive pleading pending",
+            "Pleadings closed",
+            "Written discovery",
+            "Depositions / expert discovery",
+            "Dispositive motion pending",
+            "Pretrial",
+            "Trial",
+            "Post-trial motions",
+            "On appeal",
+            "Judgment enforcement",
+            "Settled / closed"
+          ]
+        },
+        {
+          "id": "forum_type",
+          "label": "Forum",
+          "type": "select",
+          "required": true,
+          "options": [
+            "State trial court",
+            "State appellate court",
+            "Federal district court",
+            "Federal court of appeals",
+            "Bankruptcy court",
+            "Administrative agency",
+            "Arbitration panel",
+            "Tribal court",
+            "Not yet filed"
+          ]
+        },
+        {
+          "id": "court_name",
+          "label": "Court / tribunal full name",
+          "type": "text",
+          "help": "e.g., 'U.S. District Court for the District of South Carolina, Greenville Division'"
+        },
+        {
+          "id": "court_state",
+          "label": "State",
+          "type": "text"
+        },
+        {
+          "id": "court_county",
+          "label": "County / district / division",
+          "type": "text"
+        },
+        {
+          "id": "judge_name",
+          "label": "Assigned judge",
+          "type": "text"
+        },
+        {
+          "id": "magistrate_name",
+          "label": "Assigned magistrate judge",
+          "type": "text"
+        },
+        {
+          "id": "case_caption",
+          "label": "Full case caption as it appears on filings",
+          "type": "textarea",
+          "help": "Paste verbatim, including party designations and 'et al.' usage."
+        },
+        {
+          "id": "case_number",
+          "label": "Case / docket number",
+          "type": "text"
+        },
+        {
+          "id": "filing_date",
+          "label": "Date the action was commenced",
+          "type": "date"
+        },
+        {
+          "id": "all_parties",
+          "label": "All parties of record",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Party name",
+              "type": "text"
+            },
+            {
+              "id": "designation",
+              "label": "Designation",
+              "type": "text",
+              "help": "Plaintiff, Defendant, Third-Party Defendant, etc."
+            },
+            {
+              "id": "counsel",
+              "label": "Counsel of record",
+              "type": "text"
+            },
+            {
+              "id": "service_status",
+              "label": "Service status",
+              "type": "select",
+              "options": [
+                "Served",
+                "Not served",
+                "Waived",
+                "Attempted — unsuccessful",
+                "N/A"
+              ]
+            },
+            {
+              "id": "appeared",
+              "label": "Has appeared?",
+              "type": "boolean"
+            },
+            {
+              "id": "default_status",
+              "label": "In default?",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "federal_jurisdiction_basis",
+          "label": "Basis of federal jurisdiction",
+          "type": "multiselect",
+          "show_if": {
+            "field": "forum_type",
+            "op": "in",
+            "value": [
+              "Federal district court",
+              "Federal court of appeals",
+              "Bankruptcy court"
+            ]
+          },
+          "options": [
+            "Federal question — 28 U.S.C. § 1331",
+            "Diversity — 28 U.S.C. § 1332",
+            "Supplemental — 28 U.S.C. § 1367",
+            "Removal — 28 U.S.C. § 1441",
+            "Federal defendant / officer",
+            "Admiralty",
+            "Bankruptcy",
+            "Other statutory grant"
+          ]
+        },
+        {
+          "id": "amount_in_controversy",
+          "label": "Amount in controversy",
+          "type": "currency",
+          "show_if": {
+            "field": "federal_jurisdiction_basis",
+            "op": "contains",
+            "value": "Diversity — 28 U.S.C. § 1332"
+          }
+        },
+        {
+          "id": "diversity_citizenship_detail",
+          "label": "Citizenship of each party",
+          "type": "textarea",
+          "show_if": {
+            "field": "federal_jurisdiction_basis",
+            "op": "contains",
+            "value": "Diversity — 28 U.S.C. § 1332"
+          },
+          "help": "For LLCs and partnerships, list the citizenship of every member/partner, traced through tiers."
+        },
+        {
+          "id": "removal_status",
+          "label": "Removal / remand status and key dates",
+          "type": "text"
+        },
+        {
+          "id": "venue_basis",
+          "label": "Basis for venue",
+          "type": "text"
+        },
+        {
+          "id": "personal_jurisdiction_issues",
+          "label": "Any personal jurisdiction or service issues anticipated?",
+          "type": "textarea"
+        },
+        {
+          "id": "causes_of_action",
+          "label": "Claims / causes of action",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "claim",
+              "label": "Claim",
+              "type": "text"
+            },
+            {
+              "id": "legal_basis",
+              "label": "Statutory or common-law basis",
+              "type": "text"
+            },
+            {
+              "id": "against_whom",
+              "label": "Asserted against",
+              "type": "text"
+            },
+            {
+              "id": "by_whom",
+              "label": "Asserted by",
+              "type": "text"
+            },
+            {
+              "id": "accrual_date",
+              "label": "Date the claim accrued",
+              "type": "date"
+            },
+            {
+              "id": "limitations_date",
+              "label": "Limitations / repose deadline (if known)",
+              "type": "date"
+            },
+            {
+              "id": "prerequisites",
+              "label": "Administrative exhaustion, notice, or presuit requirements",
+              "type": "text",
+              "help": "e.g., agency charge, tort claims act notice, presuit affidavit."
+            },
+            {
+              "id": "status",
+              "label": "Status",
+              "type": "select",
+              "options": [
+                "Contemplated",
+                "Pled",
+                "Dismissed",
+                "Withdrawn",
+                "Adjudicated"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "defenses",
+          "label": "Defenses asserted or anticipated",
+          "type": "textarea"
+        },
+        {
+          "id": "relief_sought",
+          "label": "Relief sought",
+          "type": "multiselect",
+          "options": [
+            "Compensatory damages",
+            "Consequential damages",
+            "Punitive / exemplary damages",
+            "Statutory damages",
+            "Nominal damages",
+            "Injunctive relief — preliminary",
+            "Injunctive relief — permanent",
+            "Declaratory judgment",
+            "Specific performance",
+            "Rescission",
+            "Reformation",
+            "Accounting",
+            "Constructive trust",
+            "Quiet title",
+            "Attorney's fees",
+            "Costs",
+            "Pre/post-judgment interest",
+            "Equitable relief — other"
+          ]
+        },
+        {
+          "id": "fee_shifting_basis",
+          "label": "Basis for any fee request",
+          "type": "text",
+          "help": "Contract provision, statute, or rule. Leave blank if none."
+        },
+        {
+          "id": "damages_amount",
+          "label": "Damages sought / claimed",
+          "type": "currency"
+        },
+        {
+          "id": "damages_computation",
+          "label": "How damages are computed",
+          "type": "textarea"
+        },
+        {
+          "id": "responsive_pleading_due",
+          "label": "Responsive pleading due date",
+          "type": "date"
+        },
+        {
+          "id": "scheduling_order_exists",
+          "label": "Is a scheduling order in place?",
+          "type": "boolean"
+        },
+        {
+          "id": "key_dates",
+          "label": "Key dates and deadlines of record",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "event",
+              "label": "Event",
+              "type": "text",
+              "help": "e.g., amendment of pleadings, discovery cutoff, dispositive motion deadline, mediation, pretrial conference, trial."
+            },
+            {
+              "id": "date",
+              "label": "Date",
+              "type": "date"
+            },
+            {
+              "id": "source",
+              "label": "Source",
+              "type": "text",
+              "help": "Scheduling order, local rule, statute, or standing order. Cite it."
+            }
+          ]
+        },
+        {
+          "id": "discovery_status",
+          "label": "Discovery status",
+          "type": "select",
+          "options": [
+            "Not begun",
+            "Initial disclosures exchanged",
+            "Written discovery outstanding",
+            "Written discovery complete",
+            "Depositions in progress",
+            "Expert discovery",
+            "Discovery closed",
+            "Reopened"
+          ]
+        },
+        {
+          "id": "discovery_disputes",
+          "label": "Pending or anticipated discovery disputes",
+          "type": "textarea"
+        },
+        {
+          "id": "prior_motions",
+          "label": "Motions filed to date",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "title",
+              "label": "Motion",
+              "type": "text"
+            },
+            {
+              "id": "filed_by",
+              "label": "Filed by",
+              "type": "text"
+            },
+            {
+              "id": "date_filed",
+              "label": "Date filed",
+              "type": "date"
+            },
+            {
+              "id": "ruling",
+              "label": "Ruling / status",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "protective_order",
+          "label": "Protective or confidentiality order in place?",
+          "type": "select",
+          "options": [
+            "No",
+            "Yes — stipulated",
+            "Yes — court-entered",
+            "Requested / pending"
+          ]
+        },
+        {
+          "id": "adr_status",
+          "label": "ADR status",
+          "type": "select",
+          "options": [
+            "None",
+            "Mediation scheduled",
+            "Mediation completed — impasse",
+            "Mediation completed — settled",
+            "Court-ordered ADR pending",
+            "Arbitration pending",
+            "Settlement negotiations active"
+          ]
+        },
+        {
+          "id": "appeal_court",
+          "label": "Appellate court",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "appeal_notice_date",
+          "label": "Date notice of appeal filed",
+          "type": "date",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "appeal_order_appealed",
+          "label": "Order or judgment appealed from (date and description)",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "appeal_finality_basis",
+          "label": "Basis for appellate jurisdiction / finality",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "appeal_record_status",
+          "label": "Record and transcript status",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "appeal_issues",
+          "label": "Issues on appeal and preservation below",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          },
+          "help": "For each issue, identify where it was raised and ruled on below."
+        },
+        {
+          "id": "appeal_standard_of_review",
+          "label": "Standard of review for each issue",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Litigation (appellate)"
+          }
+        },
+        {
+          "id": "related_cases",
+          "label": "Related, consolidated, or parallel proceedings",
+          "type": "textarea"
+        },
+        {
+          "id": "efiling_system",
+          "label": "Filing system",
+          "type": "select",
+          "options": [
+            "Federal CM/ECF",
+            "State e-filing portal",
+            "Paper filing",
+            "Agency portal",
+            "Unknown"
+          ]
+        },
+        {
+          "id": "pro_hac_status",
+          "label": "Pro hac vice / local counsel status",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "id": "s07_transactional",
+      "title": "7. Transactional, Business & Estate Details",
+      "purpose": "Deal or instrument specifics, entity data, and dispositive intent.",
+      "show_if": {
+        "field": "matter_track",
+        "op": "in",
+        "value": [
+          "Transactional / business",
+          "Estate planning",
+          "Probate / trust administration",
+          "Mixed — litigation and transactional"
+        ]
+      },
+      "fields": [
+        {
+          "id": "transaction_type",
+          "label": "Transaction / instrument type",
+          "type": "multiselect",
+          "options": [
+            "Entity formation",
+            "Entity conversion, domestication, or reinstatement",
+            "Asset purchase",
+            "Equity / membership interest purchase",
+            "Merger",
+            "Financing — debt",
+            "Financing — equity",
+            "Convertible note / SAFE",
+            "Real estate purchase or sale",
+            "Lease",
+            "Commercial contract",
+            "Services agreement",
+            "Employment or contractor agreement",
+            "NDA",
+            "Licensing or IP assignment",
+            "Loan, note, guaranty, or security agreement",
+            "Buy-sell / succession agreement",
+            "Dissolution or wind-up",
+            "Nonprofit formation or governance",
+            "Will",
+            "Revocable trust",
+            "Irrevocable trust",
+            "Power of attorney",
+            "Advance directive",
+            "Probate administration",
+            "Trust administration",
+            "Guardianship / conservatorship",
+            "Other"
+          ]
+        },
+        {
+          "id": "deal_parties",
+          "label": "Transaction parties",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text"
+            },
+            {
+              "id": "role",
+              "label": "Role",
+              "type": "text"
+            },
+            {
+              "id": "entity_type_state",
+              "label": "Entity type and state",
+              "type": "text"
+            },
+            {
+              "id": "signatory",
+              "label": "Authorized signatory and title",
+              "type": "text"
+            },
+            {
+              "id": "counsel",
+              "label": "Their counsel",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "existing_entity",
+          "label": "Does an entity already exist for this matter?",
+          "type": "select",
+          "options": [
+            "No — forming new",
+            "Yes",
+            "N/A"
+          ]
+        },
+        {
+          "id": "existing_governing_docs",
+          "label": "Existing governing documents and dates",
+          "type": "textarea",
+          "show_if": {
+            "field": "existing_entity",
+            "op": "eq",
+            "value": "Yes"
+          },
+          "help": "Articles, operating agreement, bylaws, prior amendments, shareholder agreements. Attach in Section 9."
+        },
+        {
+          "id": "ownership_table",
+          "label": "Current or proposed ownership",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "owner",
+              "label": "Owner",
+              "type": "text"
+            },
+            {
+              "id": "interest_class",
+              "label": "Class / units / shares",
+              "type": "text"
+            },
+            {
+              "id": "percentage",
+              "label": "Percentage",
+              "type": "text"
+            },
+            {
+              "id": "contribution",
+              "label": "Capital contribution",
+              "type": "currency"
+            },
+            {
+              "id": "vesting",
+              "label": "Vesting or transfer restrictions",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "management_structure",
+          "label": "Management / governance structure desired",
+          "type": "textarea",
+          "help": "Member-managed vs. manager-managed, board composition, voting thresholds, deadlock mechanism."
+        },
+        {
+          "id": "consideration",
+          "label": "Consideration / deal value",
+          "type": "currency"
+        },
+        {
+          "id": "payment_structure",
+          "label": "Payment structure",
+          "type": "textarea",
+          "help": "Cash at closing, seller note, earnout, escrow, holdback."
+        },
+        {
+          "id": "closing_date",
+          "label": "Target closing or effective date",
+          "type": "date"
+        },
+        {
+          "id": "contingencies",
+          "label": "Conditions precedent and contingencies",
+          "type": "textarea"
+        },
+        {
+          "id": "assets_involved",
+          "label": "Assets or property involved",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "description",
+              "label": "Description",
+              "type": "text"
+            },
+            {
+              "id": "titling",
+              "label": "How currently titled",
+              "type": "text"
+            },
+            {
+              "id": "location",
+              "label": "Location / situs",
+              "type": "text"
+            },
+            {
+              "id": "value",
+              "label": "Approximate value",
+              "type": "currency"
+            },
+            {
+              "id": "encumbrances",
+              "label": "Liens, mortgages, or encumbrances",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "governing_law",
+          "label": "Desired governing law",
+          "type": "text"
+        },
+        {
+          "id": "forum_selection",
+          "label": "Forum selection / venue preference",
+          "type": "text"
+        },
+        {
+          "id": "dispute_resolution_pref",
+          "label": "Dispute resolution preference",
+          "type": "select",
+          "options": [
+            "Litigation",
+            "Binding arbitration",
+            "Mediation then arbitration",
+            "Mediation then litigation",
+            "No preference"
+          ]
+        },
+        {
+          "id": "key_commercial_terms",
+          "label": "Key commercial terms to reflect",
+          "type": "textarea",
+          "help": "Indemnity caps and baskets, reps and warranties survival, non-compete scope and duration, exclusivity, termination rights, limitation of liability."
+        },
+        {
+          "id": "regulatory_licensing",
+          "label": "Regulatory, licensing, or filing requirements",
+          "type": "textarea"
+        },
+        {
+          "id": "tax_considerations",
+          "label": "Tax elections or considerations flagged by the client's CPA",
+          "type": "textarea",
+          "help": "We do not provide tax advice; capture what the client's tax professional has directed."
+        },
+        {
+          "id": "securities_exemption",
+          "label": "Securities exemption relied on (if raising capital)",
+          "type": "text"
+        },
+        {
+          "id": "estate_testator",
+          "label": "Testator / settlor / decedent name and domicile",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          }
+        },
+        {
+          "id": "estate_marital_status",
+          "label": "Marital status; spouse name; prior marriages",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          }
+        },
+        {
+          "id": "estate_children",
+          "label": "Children and other descendants (note any minors, adopted, or from prior relationships)",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          }
+        },
+        {
+          "id": "estate_prior_documents",
+          "label": "Existing estate documents and execution dates",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          },
+          "help": "Prior wills, codicils, trusts, POAs, directives. Note whether originals are located."
+        },
+        {
+          "id": "estate_fiduciaries",
+          "label": "Nominated fiduciaries",
+          "type": "group",
+          "repeats": true,
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          },
+          "subfields": [
+            {
+              "id": "role",
+              "label": "Role",
+              "type": "select",
+              "options": [
+                "Executor / personal representative",
+                "Successor executor",
+                "Trustee",
+                "Successor trustee",
+                "Guardian of minor children",
+                "Conservator",
+                "Agent under POA",
+                "Healthcare agent"
+              ]
+            },
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text"
+            },
+            {
+              "id": "relationship",
+              "label": "Relationship",
+              "type": "text"
+            },
+            {
+              "id": "contact",
+              "label": "Contact information",
+              "type": "text"
+            },
+            {
+              "id": "bond_waived",
+              "label": "Bond waived?",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "estate_beneficiaries",
+          "label": "Beneficiaries and intended shares",
+          "type": "group",
+          "repeats": true,
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          },
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text"
+            },
+            {
+              "id": "relationship",
+              "label": "Relationship",
+              "type": "text"
+            },
+            {
+              "id": "share",
+              "label": "Share or specific bequest",
+              "type": "text"
+            },
+            {
+              "id": "contingent",
+              "label": "Contingent / alternate takers",
+              "type": "text"
+            },
+            {
+              "id": "special_needs",
+              "label": "Special needs, creditor, or spendthrift concerns?",
+              "type": "boolean"
+            },
+            {
+              "id": "minor",
+              "label": "Minor beneficiary?",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "estate_disinheritance",
+          "label": "Anyone to be intentionally omitted or disinherited?",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          },
+          "help": "Flag expressly — omission handled by default rules is different from deliberate exclusion."
+        },
+        {
+          "id": "estate_multistate_property",
+          "label": "Real property or assets located outside the state of domicile",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          }
+        },
+        {
+          "id": "estate_capacity_or_undue_influence",
+          "label": "Any known capacity, undue influence, or contest risk?",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "in",
+            "value": [
+              "Estate planning",
+              "Probate / trust administration"
+            ]
+          }
+        },
+        {
+          "id": "probate_decedent_dod",
+          "label": "Date of death",
+          "type": "date",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "probate_county",
+          "label": "County of domicile at death / probate court",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "probate_will_status",
+          "label": "Testate or intestate; original will located?",
+          "type": "text",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "probate_estate_value",
+          "label": "Approximate gross estate value",
+          "type": "currency",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "probate_creditors",
+          "label": "Known creditors and claims",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "probate_heirs",
+          "label": "Known heirs at law",
+          "type": "textarea",
+          "show_if": {
+            "field": "matter_track",
+            "op": "eq",
+            "value": "Probate / trust administration"
+          }
+        },
+        {
+          "id": "execution_formalities",
+          "label": "Execution formalities required",
+          "type": "textarea",
+          "help": "Witnesses, notarization, self-proving affidavit, remote/electronic execution availability in the governing state."
+        }
+      ]
+    },
+    {
+      "id": "s08_facts",
+      "title": "8. Facts, Chronology & Witnesses",
+      "purpose": "The factual record the work product will be built on.",
+      "fields": [
+        {
+          "id": "factual_narrative",
+          "label": "Narrative statement of facts",
+          "type": "textarea",
+          "required": true,
+          "help": "Plain chronological account. Separate what you know from what you believe or suspect."
+        },
+        {
+          "id": "chronology",
+          "label": "Chronology of key events",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "date",
+              "label": "Date",
+              "type": "date"
+            },
+            {
+              "id": "event",
+              "label": "Event",
+              "type": "textarea"
+            },
+            {
+              "id": "source_document",
+              "label": "Supporting document or source",
+              "type": "text"
+            },
+            {
+              "id": "significance",
+              "label": "Legal significance",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "witnesses",
+          "label": "Witnesses and knowledgeable persons",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "text"
+            },
+            {
+              "id": "role",
+              "label": "Role / relationship",
+              "type": "text"
+            },
+            {
+              "id": "knowledge",
+              "label": "Subject of knowledge",
+              "type": "text"
+            },
+            {
+              "id": "contact_known",
+              "label": "Contact information available?",
+              "type": "boolean"
+            },
+            {
+              "id": "cooperative",
+              "label": "Cooperative, neutral, or adverse?",
+              "type": "select",
+              "options": [
+                "Cooperative",
+                "Neutral",
+                "Adverse",
+                "Unknown"
+              ]
+            },
+            {
+              "id": "expert",
+              "label": "Retained or anticipated expert?",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "disputed_facts",
+          "label": "Facts you expect the other side to dispute",
+          "type": "textarea"
+        },
+        {
+          "id": "unfavorable_facts",
+          "label": "Unfavorable facts, admissions, or weaknesses",
+          "type": "textarea",
+          "required": true,
+          "help": "Required. Work product built without these is unreliable. If there are none you know of, say so."
+        },
+        {
+          "id": "prior_statements",
+          "label": "Prior statements, recordings, or writings by the client bearing on the matter",
+          "type": "textarea"
+        },
+        {
+          "id": "preservation_status",
+          "label": "Preservation / litigation hold status",
+          "type": "select",
+          "options": [
+            "Hold issued",
+            "No hold issued",
+            "Not applicable",
+            "Unknown"
+          ]
+        },
+        {
+          "id": "prior_proceedings",
+          "label": "Prior related proceedings, judgments, or agreements between these parties",
+          "type": "textarea",
+          "help": "Drives claim and issue preclusion analysis."
+        }
+      ]
+    },
+    {
+      "id": "s09_documents",
+      "title": "9. Documents & Evidence Provided",
+      "purpose": "Inventory of the record supplied with the request.",
+      "fields": [
+        {
+          "id": "documents_attached",
+          "label": "Documents attached",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "filename",
+              "label": "File name",
+              "type": "text"
+            },
+            {
+              "id": "description",
+              "label": "Description",
+              "type": "text"
+            },
+            {
+              "id": "document_date",
+              "label": "Document date",
+              "type": "date"
+            },
+            {
+              "id": "source",
+              "label": "Source / custodian",
+              "type": "text"
+            },
+            {
+              "id": "bates_range",
+              "label": "Bates range",
+              "type": "text"
+            },
+            {
+              "id": "complete",
+              "label": "Complete or excerpt?",
+              "type": "select",
+              "options": [
+                "Complete",
+                "Excerpt",
+                "Unknown"
+              ]
+            },
+            {
+              "id": "privileged",
+              "label": "Privileged?",
+              "type": "boolean"
+            },
+            {
+              "id": "confidential",
+              "label": "Subject to confidentiality designation?",
+              "type": "boolean"
+            },
+            {
+              "id": "authenticity",
+              "label": "Any authenticity or admissibility concern?",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "documents_missing",
+          "label": "Documents known to exist but not provided",
+          "type": "textarea"
+        },
+        {
+          "id": "documents_to_obtain",
+          "label": "Documents you want us to identify or request",
+          "type": "textarea"
+        },
+        {
+          "id": "record_citation_convention",
+          "label": "Record citation convention to use",
+          "type": "text",
+          "help": "e.g., 'ECF No. __ at __', 'R. p. __', 'App. __', 'Ex. A at 3'."
+        }
+      ]
+    },
+    {
+      "id": "s10_deadlines",
+      "title": "10. Deadlines & Time Sensitivity",
+      "purpose": "Hard gate for scheduling and triage.",
+      "fields": [
+        {
+          "id": "no_external_deadline",
+          "label": "No external deadline applies",
+          "type": "boolean",
+          "required": false,
+          "help": "Use only when there is no court, statutory, rule-based, contractual, or client-imposed deadline. An internal target date is still required."
+        },
+        {
+          "id": "hard_deadline",
+          "label": "Hard deadline for the deliverable",
+          "type": "datetime",
+          "required": false,
+          "required_if": {
+            "field": "no_external_deadline",
+            "op": "is_false",
+            "value": true
+          }
+        },
+        {
+          "id": "deadline_timezone",
+          "label": "Time zone",
+          "type": "text",
+          "required": false,
+          "required_if": {
+            "field": "no_external_deadline",
+            "op": "is_false",
+            "value": true
+          }
+        },
+        {
+          "id": "deadline_type",
+          "label": "Deadline type",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Court-imposed",
+            "Statutory",
+            "Rule-based",
+            "Contractual",
+            "Client-imposed",
+            "Internal / soft"
+          ],
+          "required_if": {
+            "field": "no_external_deadline",
+            "op": "is_false",
+            "value": true
+          }
+        },
+        {
+          "id": "deadline_source",
+          "label": "Cite the source of the deadline",
+          "type": "text",
+          "required": false,
+          "help": "Rule, statute, order, or contract section. Do not rely on memory — cite it.",
+          "required_if": {
+            "field": "no_external_deadline",
+            "op": "is_false",
+            "value": true
+          }
+        },
+        {
+          "id": "deadline_verified",
+          "label": "Has the deadline been independently verified against the docket or governing rule?",
+          "type": "boolean"
+        },
+        {
+          "id": "limitations_analysis_requested",
+          "label": "Do you want a limitations / repose analysis?",
+          "type": "boolean"
+        },
+        {
+          "id": "tolling_issues",
+          "label": "Tolling, discovery rule, or equitable estoppel issues",
+          "type": "textarea"
+        },
+        {
+          "id": "consequences_of_missing",
+          "label": "Consequence if the deadline is missed",
+          "type": "textarea"
+        },
+        {
+          "id": "internal_target_date",
+          "label": "Internal target date for draft delivery",
+          "type": "date",
+          "help": "Should precede the hard deadline by enough margin for attorney review and filing.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "s11_formatting",
+      "title": "11. Drafting, Formatting & Filing Requirements",
+      "purpose": "Everything needed for the output to be filed or executed without rework.",
+      "fields": [
+        {
+          "id": "output_format",
+          "label": "Output file format",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "DOCX",
+            "PDF",
+            "Markdown",
+            "Plain text",
+            "Google Doc",
+            "Fillable PDF"
+          ]
+        },
+        {
+          "id": "caption_exemplar",
+          "label": "Required caption format",
+          "type": "textarea",
+          "help": "Paste a caption from a prior filing in this case or court."
+        },
+        {
+          "id": "page_limit",
+          "label": "Page limit",
+          "type": "text"
+        },
+        {
+          "id": "word_limit",
+          "label": "Word limit",
+          "type": "text"
+        },
+        {
+          "id": "font_and_spacing",
+          "label": "Font, size, spacing, margins",
+          "type": "text",
+          "help": "e.g., 'Times New Roman 14, double-spaced, 1-inch margins.' Check the local rule."
+        },
+        {
+          "id": "line_numbering",
+          "label": "Line numbering required?",
+          "type": "boolean"
+        },
+        {
+          "id": "citation_format",
+          "label": "Citation format",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Bluebook",
+            "ALWD Guide",
+            "Court-specified local format",
+            "State style manual",
+            "Plain / non-technical",
+            "Match the attached exemplar"
+          ]
+        },
+        {
+          "id": "citation_notes",
+          "label": "Citation notes",
+          "type": "text",
+          "help": "Parallel citations, pinpoint requirements, short-form conventions, whether id. is permitted."
+        },
+        {
+          "id": "toc_toa_required",
+          "label": "Table of contents / table of authorities required?",
+          "type": "select",
+          "options": [
+            "Neither",
+            "TOC only",
+            "TOA only",
+            "Both"
+          ]
+        },
+        {
+          "id": "certificate_of_service",
+          "label": "Certificate of service required?",
+          "type": "boolean"
+        },
+        {
+          "id": "service_method",
+          "label": "Method of service on each party",
+          "type": "text"
+        },
+        {
+          "id": "certificate_of_compliance",
+          "label": "Certificate of compliance (length/format) required?",
+          "type": "boolean"
+        },
+        {
+          "id": "proposed_order_required",
+          "label": "Proposed order required?",
+          "type": "boolean"
+        },
+        {
+          "id": "signature_block",
+          "label": "Signature block text",
+          "type": "textarea",
+          "required": true,
+          "help": "Exact name, title or bar number, address, phone, email as it should appear. For pro se, the party's own block."
+        },
+        {
+          "id": "verification_required",
+          "label": "Verification or notarized signature required?",
+          "type": "boolean"
+        },
+        {
+          "id": "exhibit_convention",
+          "label": "Exhibit labeling convention",
+          "type": "select",
+          "options": [
+            "Letters (Exhibit A)",
+            "Numbers (Exhibit 1)",
+            "Party-prefixed",
+            "Match prior filings",
+            "N/A"
+          ]
+        },
+        {
+          "id": "redaction_requirements",
+          "label": "Redaction requirements",
+          "type": "multiselect",
+          "options": [
+            "Minors — initials only",
+            "Social Security numbers — last four only",
+            "Dates of birth — year only",
+            "Financial account numbers — last four only",
+            "Home addresses",
+            "Medical information",
+            "Trade secret / confidential business information",
+            "None"
+          ],
+          "help": "Federal practice and most state analogs restrict these in public filings. Confirm the governing rule for your court."
+        },
+        {
+          "id": "sealing_requested",
+          "label": "Is any portion to be filed under seal?",
+          "type": "boolean"
+        },
+        {
+          "id": "assembly_scope",
+          "label": "Assembly scope",
+          "type": "select",
+          "options": [
+            "Draft document only",
+            "Draft plus exhibits",
+            "Complete filing package ready to upload",
+            "Filing package plus service list"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s12_research",
+      "title": "12. Research Parameters & Verification",
+      "purpose": "Controls authority selection and the citation-verification standard.",
+      "fields": [
+        {
+          "id": "controlling_jurisdiction",
+          "label": "Controlling jurisdiction(s)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "persuasive_jurisdictions",
+          "label": "Persuasive jurisdictions worth surveying",
+          "type": "text"
+        },
+        {
+          "id": "binding_only",
+          "label": "Restrict to binding authority?",
+          "type": "boolean"
+        },
+        {
+          "id": "authority_types",
+          "label": "Authority types to include",
+          "type": "multiselect",
+          "options": [
+            "Constitutional provisions",
+            "Statutes",
+            "Regulations",
+            "Case law",
+            "Rules of civil procedure",
+            "Rules of evidence",
+            "Local rules and standing orders",
+            "Ethics opinions",
+            "Secondary sources / treatises",
+            "Legislative history",
+            "Model or uniform acts",
+            "Agency guidance"
+          ]
+        },
+        {
+          "id": "date_range",
+          "label": "Date range or currency requirement",
+          "type": "text"
+        },
+        {
+          "id": "verification_level",
+          "label": "Citation verification level",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Standard — citations confirmed to exist and match the proposition",
+            "High — every citation retrieved in full text, every quotation checked verbatim against the source, and subsequent history checked",
+            "Court filing — high verification plus citator check for negative treatment on every authority"
+          ],
+          "help": "Anything intended for filing should use the highest level. No authority is cited unless it has been retrieved and read."
+        },
+        {
+          "id": "citator_required",
+          "label": "Citator / subsequent-history check required?",
+          "type": "boolean"
+        },
+        {
+          "id": "known_authorities",
+          "label": "Authorities you already want included",
+          "type": "group",
+          "repeats": true,
+          "subfields": [
+            {
+              "id": "citation",
+              "label": "Citation",
+              "type": "text"
+            },
+            {
+              "id": "proposition",
+              "label": "Proposition it supports",
+              "type": "text"
+            },
+            {
+              "id": "verified",
+              "label": "Have you verified it?",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "adverse_authority",
+          "label": "Adverse authority known to you",
+          "type": "textarea",
+          "help": "Controlling adverse authority generally must be disclosed. Identify it so it can be addressed rather than discovered by the court."
+        },
+        {
+          "id": "prior_research_on_file",
+          "label": "Prior research or memoranda on this issue",
+          "type": "text"
+        },
+        {
+          "id": "research_depth",
+          "label": "Depth",
+          "type": "select",
+          "options": [
+            "Quick answer — under 1 page",
+            "Standard memo — 3 to 8 pages",
+            "Comprehensive survey — 10+ pages",
+            "Brief-ready argument section"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s13_voice",
+      "title": "13. Audience, Tone & Precedent",
+      "fields": [
+        {
+          "id": "audience",
+          "label": "Primary audience",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Court / judge",
+            "Opposing counsel",
+            "Client",
+            "Third party",
+            "Agency or regulator",
+            "Internal file",
+            "Jury"
+          ]
+        },
+        {
+          "id": "tone",
+          "label": "Tone",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Formal and neutral",
+            "Persuasive",
+            "Firm and adversarial",
+            "Conciliatory / settlement-oriented",
+            "Plain language for a non-lawyer"
+          ]
+        },
+        {
+          "id": "reading_level",
+          "label": "Reading level target",
+          "type": "select",
+          "options": [
+            "Legal professional",
+            "Educated non-lawyer",
+            "Plain language — 8th grade"
+          ]
+        },
+        {
+          "id": "style_guide",
+          "label": "House style guide or drafting preferences",
+          "type": "textarea",
+          "help": "e.g., no string cites, headings as full sentences, active voice, no footnotes."
+        },
+        {
+          "id": "reuse_prior_work",
+          "label": "Prior work product to reuse or mirror",
+          "type": "text"
+        },
+        {
+          "id": "arguments_to_emphasize",
+          "label": "Arguments or provisions to emphasize",
+          "type": "textarea"
+        },
+        {
+          "id": "arguments_to_avoid",
+          "label": "Arguments, theories, or language to avoid",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "id": "s14_scope",
+      "title": "14. Scope, Authorization & Budget",
+      "fields": [
+        {
+          "id": "engagement_scope",
+          "label": "Scope of engagement",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Full document preparation",
+            "Research only",
+            "Review and redline only",
+            "Limited scope / unbundled task",
+            "Ongoing matter support"
+          ]
+        },
+        {
+          "id": "budget_cap",
+          "label": "Budget or hour cap",
+          "type": "text"
+        },
+        {
+          "id": "fee_arrangement",
+          "label": "Fee arrangement",
+          "type": "select",
+          "options": [
+            "Flat fee",
+            "Hourly",
+            "Retainer draw",
+            "Pro bono",
+            "Subscription",
+            "Not yet set"
+          ]
+        },
+        {
+          "id": "attorney_review_required",
+          "label": "Recipient review required before signing, service, filing, or other external use?",
+          "type": "boolean",
+          "required": true,
+          "help": "Default true. SRI may independently prepare the requested materials, but the responsible recipient reviews and verifies the deliverable before external use."
+        },
+        {
+          "id": "reviewer",
+          "label": "Who reviews and approves before delivery to the end user",
+          "type": "text"
+        },
+        {
+          "id": "final_signer",
+          "label": "Who signs and files the final document",
+          "type": "text"
+        },
+        {
+          "id": "escalation_contact",
+          "label": "Escalation contact if questions arise mid-draft",
+          "type": "text"
+        },
+        {
+          "id": "escalation_authority",
+          "label": "May we make reasonable drafting judgment calls without asking, or should ambiguities be escalated?",
+          "type": "select",
+          "options": [
+            "Use judgment; note assumptions",
+            "Escalate all ambiguities",
+            "Escalate only material ones"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s15_confidentiality",
+      "title": "15. Confidentiality & Data Handling",
+      "fields": [
+        {
+          "id": "privilege_designation",
+          "label": "Privilege designation for the work product",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Attorney work product",
+            "Attorney-client privileged",
+            "Confidential — not privileged",
+            "Public / no restriction"
+          ]
+        },
+        {
+          "id": "pii_present",
+          "label": "Sensitive data present in this intake",
+          "type": "multiselect",
+          "options": [
+            "Minor's identifying information",
+            "Social Security numbers",
+            "Financial account numbers",
+            "Medical or health information",
+            "Immigration status",
+            "Criminal history",
+            "Trade secrets",
+            "None"
+          ]
+        },
+        {
+          "id": "protective_order_restrictions",
+          "label": "Protective order or NDA restrictions on this material",
+          "type": "textarea"
+        },
+        {
+          "id": "disclosure_permitted_to",
+          "label": "Persons permitted to receive the work product",
+          "type": "text"
+        },
+        {
+          "id": "third_party_tool_restrictions",
+          "label": "Any restriction on processing this matter with third-party AI or cloud tools?",
+          "type": "textarea"
+        },
+        {
+          "id": "retention_instruction",
+          "label": "Retention / destruction instruction",
+          "type": "select",
+          "options": [
+            "Retain per standard policy",
+            "Retain — client file",
+            "Destroy after delivery",
+            "Client will specify"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s16_delivery",
+      "title": "16. Delivery & Follow-Up",
+      "fields": [
+        {
+          "id": "delivery_method",
+          "label": "Delivery method",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Email",
+            "Client portal",
+            "Shared drive folder",
+            "API callback",
+            "Secure file transfer"
+          ]
+        },
+        {
+          "id": "delivery_destination",
+          "label": "Destination address, folder path, or endpoint",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "cc_recipients",
+          "label": "Additional recipients",
+          "type": "text"
+        },
+        {
+          "id": "requested_delivery_datetime",
+          "label": "Requested delivery date/time",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "id": "revision_rounds",
+          "label": "Expected revision rounds",
+          "type": "select",
+          "options": [
+            "None — final on delivery",
+            "One",
+            "Two",
+            "Iterative until approved"
+          ]
+        },
+        {
+          "id": "questions_contact",
+          "label": "Best contact and availability for clarifying questions",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "notify_on_status",
+          "label": "Send status notifications?",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "id": "s17_attestations",
+      "title": "17. Attestations",
+      "fields": [
+        {
+          "id": "accuracy_attestation",
+          "label": "I attest that the information provided is accurate and complete to the best of my knowledge.",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "id": "authority_attestation",
+          "label": "I have authority to submit this matter and to share these documents.",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "id": "review_attestation",
+          "label": "I understand all output is a draft that must be reviewed and verified before it is signed, served, or filed, and that citations must be independently confirmed.",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "id": "supervision_attestation",
+          "label": "I understand the intended recipient must review and verify the work product before it is signed, served, filed, or otherwise used externally.",
+          "type": "boolean",
+          "show_if": {
+            "field": "submitter_role",
+            "op": "not_in",
+            "value": [
+              "Self-represented person (pro se)"
+            ]
+          }
+        },
+        {
+          "id": "no_legal_advice_attestation",
+          "label": "I understand this system does not provide legal advice and does not create an attorney-client relationship.",
+          "type": "boolean",
+          "show_if": {
+            "field": "submitter_role",
+            "op": "eq",
+            "value": "Self-represented person (pro se)"
+          }
+        },
+        {
+          "id": "signature",
+          "label": "Electronic signature",
+          "type": "signature",
+          "required": true
+        },
+        {
+          "id": "signature_date",
+          "label": "Date",
+          "type": "date",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "s18_internal",
+      "title": "18. Internal Use Only",
+      "purpose": "Populated by the system, not the submitter.",
+      "fields": [
+        {
+          "id": "assigned_matter_number",
+          "label": "Assigned matter number",
+          "type": "text",
+          "internal_only": true
+        },
+        {
+          "id": "intake_completeness_score",
+          "label": "Completeness score",
+          "type": "number",
+          "internal_only": true
+        },
+        {
+          "id": "blocking_gaps",
+          "label": "Blocking information gaps",
+          "type": "textarea",
+          "internal_only": true
+        },
+        {
+          "id": "routing_tags",
+          "label": "Routing tags",
+          "type": "text",
+          "internal_only": true
+        },
+        {
+          "id": "assigned_agent",
+          "label": "Assigned agent / skill",
+          "type": "text",
+          "internal_only": true
+        },
+        {
+          "id": "qc_tier",
+          "label": "QC tier",
+          "type": "select",
+          "options": [
+            "Tier 1 — automated checks",
+            "Tier 2 — human spot check",
+            "Tier 3 — full human review",
+            "Tier 4 — attorney review required before release"
+          ],
+          "internal_only": true
+        },
+        {
+          "id": "sla_target",
+          "label": "SLA target",
+          "type": "datetime",
+          "internal_only": true
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "type": "select",
+          "options": [
+            "Received",
+            "Conflicts pending",
+            "Clarification needed",
+            "In progress",
+            "In review",
+            "Delivered",
+            "On hold",
+            "Declined"
+          ],
+          "internal_only": true
+        }
+      ],
+      "internal_only": true
+    }
+  ],
+  "validation_gates": [
+    {
+      "gate": "conflicts",
+      "rule": "No substantive deliverable is released while the internal adverse-party and engagement screen is unresolved."
+    },
+    {
+      "gate": "attestations",
+      "rule": "accuracy_attestation, authority_attestation, and review_attestation must all be true before work begins."
+    },
+    {
+      "gate": "deadline",
+      "rule": "Either hard_deadline and its source fields are supplied, or no_external_deadline is true. internal_target_date is always required. Unverified external deadlines are flagged before work is scheduled."
+    },
+    {
+      "gate": "services",
+      "rule": "services_requested and services_requested_detail are both required; at least one entry in deliverables is required."
+    },
+    {
+      "gate": "pro_se",
+      "rule": "If submitter_role is pro se, pro_se_acknowledgment and no_legal_advice_attestation must both be true."
+    },
+    {
+      "gate": "citations",
+      "rule": "If any deliverable is destined for a court, verification_level must be 'High' or 'Court filing' and citator_required must be true."
+    }
+  ],
+  "deliverable_prerequisites": {
+    "_note": "Minimum fields an agent must have populated before it can produce each deliverable class. Missing entries should trigger a targeted clarification request rather than a guess.",
+    "complaint_or_petition": [
+      "clients",
+      "adverse_parties",
+      "court_name",
+      "court_county",
+      "case_caption",
+      "causes_of_action",
+      "relief_sought",
+      "venue_basis",
+      "factual_narrative",
+      "signature_block",
+      "citizenship_state (if federal diversity)"
+    ],
+    "answer_and_defenses": [
+      "case_caption",
+      "case_number",
+      "responsive_pleading_due",
+      "documents_attached (the operative pleading)",
+      "defenses",
+      "signature_block"
+    ],
+    "dispositive_motion": [
+      "case_caption",
+      "case_number",
+      "court_name",
+      "judge_name",
+      "causes_of_action",
+      "documents_attached (record evidence)",
+      "key_dates",
+      "page_limit",
+      "citation_format",
+      "verification_level"
+    ],
+    "discovery_requests": [
+      "case_caption",
+      "case_number",
+      "all_parties",
+      "causes_of_action",
+      "discovery_status",
+      "key_dates",
+      "service_method"
+    ],
+    "discovery_responses": [
+      "case_caption",
+      "documents_attached (the requests served)",
+      "hard_deadline",
+      "protective_order",
+      "privilege_designation"
+    ],
+    "appellate_brief": [
+      "appeal_court",
+      "appeal_notice_date",
+      "appeal_order_appealed",
+      "appeal_issues",
+      "appeal_standard_of_review",
+      "appeal_record_status",
+      "record_citation_convention",
+      "word_limit",
+      "toc_toa_required"
+    ],
+    "research_memo": [
+      "questions_presented",
+      "controlling_jurisdiction",
+      "factual_narrative",
+      "authority_types",
+      "verification_level",
+      "research_depth"
+    ],
+    "contract_or_agreement": [
+      "deal_parties",
+      "transaction_type",
+      "key_commercial_terms",
+      "consideration",
+      "governing_law",
+      "dispute_resolution_pref",
+      "closing_date"
+    ],
+    "entity_formation": [
+      "clients",
+      "formation_state",
+      "entity_type",
+      "ownership_table",
+      "management_structure",
+      "regulatory_licensing"
+    ],
+    "will_or_trust": [
+      "estate_testator",
+      "estate_marital_status",
+      "estate_children",
+      "estate_fiduciaries",
+      "estate_beneficiaries",
+      "assets_involved",
+      "execution_formalities",
+      "estate_prior_documents"
+    ],
+    "probate_filing": [
+      "probate_decedent_dod",
+      "probate_county",
+      "probate_will_status",
+      "probate_heirs",
+      "probate_estate_value",
+      "clients (with capacity and authority_document)"
+    ]
+  },
+  "ui": {
+    "mode": "progressive",
+    "secure_save_resume_status": "pending Drive-backed draft endpoint; browser storage is prohibited for confidential answers",
+    "initial_sections": [
+      "s01_submission",
+      "s02_client",
+      "s03_conflicts",
+      "s04_classification",
+      "s05_services",
+      "s10_deadlines"
+    ],
+    "quick_intake_contract": "contracts/intake-v1.1.schema.json",
+    "output_catalog": "contracts/document-output-types.sc.v1.json",
+    "internal_sections": [
+      "s18_internal"
+    ]
+  }
+}
