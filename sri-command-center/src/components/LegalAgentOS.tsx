@@ -175,6 +175,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const upcomingDeadlines = dashboard?.upcomingDeadlines ?? 0;
   const matters = dashboard?.matters ?? [];
   const selectedMatter = matters.find(matter => matter.matterId === selectedMatterId) ?? null;
+  const qualityReviewMatters = matters.filter(matter => matter.status === 'quality_review');
   const connectors = dashboard?.connectors ?? [];
   const readyConnectors = connectors.filter(connector => connector.status === 'READY').length;
   const stagedConnectors = connectors.filter(connector => connector.status === 'STAGED').length;
@@ -496,15 +497,33 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
           <article className="panel">
             <div className="panel-h">
               <span className="t">REVIEW + DELIVERY</span>
-              <span className="corner">0 PACKETS</span>
+              <span className="corner">
+                {qualityReviewMatters.length
+                  ? `${qualityReviewMatters.length} IN PROGRESS`
+                  : `${awaitingApproval} ${awaitingApproval === 1 ? 'PACKET' : 'PACKETS'}`}
+              </span>
             </div>
-            <div className="laos-review-empty">
-              <span>QA</span>
-              <div>
-                <strong>NOTHING NEEDS YOUR DECISION</strong>
-                <p>Completed work appears here with the source record, draft, authorities, citation findings, risk flags, and exact proposed external action.</p>
+            {qualityReviewMatters.length ? (
+              <div className="laos-review-empty" role="status" aria-live="polite">
+                <span>QA</span>
+                <div>
+                  <strong>QUALITY REVIEW UNDERWAY</strong>
+                  <p>
+                    {qualityReviewMatters.map(matter => matter.displayName).join(', ')} — the
+                    completed review {qualityReviewMatters.length === 1 ? 'packet' : 'packets'} will
+                    appear here automatically when internal QA and packet assembly finish.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="laos-review-empty">
+                <span>QA</span>
+                <div>
+                  <strong>NOTHING NEEDS YOUR DECISION</strong>
+                  <p>Completed work appears here with the source record, draft, authorities, citation findings, risk flags, and exact proposed external action.</p>
+                </div>
+              </div>
+            )}
           </article>
 
           <article className="panel">
