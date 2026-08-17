@@ -36,10 +36,18 @@ class CommandSecurityTests(unittest.TestCase):
             "/api/events",
             "/api/legal/dashboard",
             "/api/legal/matters",
+            "/api/legal/review-packets",
             "/api/legal/assignments",
         ):
             with self.subTest(path=path):
                 self.assertEqual(503, self.client.get(path).status_code)
+
+    def test_legal_review_decision_requires_operator_auth(self):
+        response = self.client.post(
+            "/api/legal/review-packets/packet-001/decision",
+            json={"decision": "approve", "note": "Synthetic approval."},
+        )
+        self.assertEqual(503, response.status_code)
 
     def test_public_health_and_capability_status_remain_available(self):
         self.assertEqual(200, self.client.get("/api/health").status_code)

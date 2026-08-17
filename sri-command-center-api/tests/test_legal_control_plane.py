@@ -40,6 +40,32 @@ class LegalControlPlaneTests(unittest.TestCase):
             "updated_at": "2026-08-13T13:00:00Z",
         }
 
+    @staticmethod
+    def review_packet():
+        return {
+            "packet_id": "packet-001",
+            "matter_id": "MAT-001",
+            "matter_version": 3,
+            "status": "awaiting_review",
+            "summary": "Synthetic packet ready for operator review.",
+            "artifacts": [
+                {
+                    "title": "Synthetic draft",
+                    "kind": "draft_work_product",
+                    "drive_file_id": "drive-file-001",
+                    "sha256": "a" * 64,
+                }
+            ],
+            "authorities": ["Rule 56(c), SCRCP"],
+            "citation_findings": ["Synthetic citation finding"],
+            "risk_flags": ["Synthetic test only"],
+            "proposed_external_action": "Draft a delivery message for separate approval.",
+            "created_at": "2026-08-17T16:00:00Z",
+            "reviewed_at": None,
+            "reviewed_by": None,
+            "decision_note": None,
+        }
+
     @patch("app.services.legal_control_plane.httpx.get")
     def test_dashboard_maps_only_canonical_state(self, get):
         get.side_effect = [
@@ -116,6 +142,53 @@ class LegalControlPlaneTests(unittest.TestCase):
         self.assertEqual(1, len(assignments))
         self.assertEqual("researching", assignments[0].stage)
         self.assertEqual("running", assignments[0].status)
+
+    @patch("app.services.legal_control_plane.httpx.get")
+    def test_review_packets_expose_private_drive_references_and_findings(self, get):
+        get.return_value = self.response([self.review_packet()])
+
+        packets = self.control_plane.review_packets()
+
+        self.assertEqual(1, len(packets))
+        self.assertEqual("packet-001", packets[0].packetId)
+        self.assertEqual("drive-file-001", packets[0].artifacts[0].driveFileId)
+        self.assertEqual(["Rule 56(c), SCRCP"], packets[0].authorities)
+        self.assertEqual(
+            "https://legal.example.test/api/review-packets",
+            get.call_args.args[0],
+        )
+
+    @patch("app.services.legal_control_plane.httpx.post")
+    def test_review_decision_is_forwarded_without_authorizing_delivery(self, post):
+        packet = self.review_packet()
+        packet.update(
+            {
+                "status": "approved",
+                "reviewed_at": "2026-08-17T16:05:00Z",
+                "reviewed_by": "jeffery-williams",
+                "decision_note": "Synthetic approval; delivery remains separate.",
+            }
+        )
+        post.return_value = self.response(packet)
+
+        updated = self.control_plane.decide_review_packet(
+            "packet-001",
+            "approve",
+            "Synthetic approval; delivery remains separate.",
+        )
+
+        self.assertEqual("approved", updated.status)
+        self.assertEqual(
+            "https://legal.example.test/api/review-packets/packet-001/decision",
+            post.call_args.args[0],
+        )
+        self.assertEqual(
+            {
+                "decision": "approve",
+                "note": "Synthetic approval; delivery remains separate.",
+            },
+            post.call_args.kwargs["json"],
+        )
 
     @patch("app.services.legal_control_plane.httpx.get")
     def test_unexpected_contract_fails_closed(self, get):

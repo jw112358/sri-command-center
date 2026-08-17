@@ -12,7 +12,7 @@ import type {
   MarketingDashboard,
   EventEdgeDashboard, EventEdgeManualTrade,
   LegalIntakeReceipt, LegalMatterSummary, LegalOperatorSession,
-  LegalSessionStatus,
+  LegalReviewPacket, LegalSessionStatus,
 } from '../types';
 import * as mock from '../mock/data';
 
@@ -406,6 +406,24 @@ export async function resolveLegalMatterClarifications(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function getLegalReviewPackets(): Promise<LegalReviewPacket[]> {
+  return apiFetch<LegalReviewPacket[]>('/api/legal/review-packets');
+}
+
+export async function decideLegalReviewPacket(
+  packetId: string,
+  decision: 'approve' | 'request_revision' | 'reject',
+  note: string,
+): Promise<LegalReviewPacket> {
+  return apiFetch<LegalReviewPacket>(
+    `/api/legal/review-packets/${encodeURIComponent(packetId)}/decision`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, note }),
+    },
+  );
 }
 
 export async function pauseLegalOS(): Promise<{ paused: boolean }> {

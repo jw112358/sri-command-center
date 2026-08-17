@@ -18,6 +18,8 @@ from app.models import (
     LegalMatterSummary,
     LegalMatterClarificationRequest,
     LegalOperatorSession,
+    LegalReviewDecisionRequest,
+    LegalReviewPacket,
     LegalSessionStatus,
 )
 from app.services.legal_auth import (
@@ -121,6 +123,34 @@ def dashboard():
 def matters():
     try:
         return get_legal_control_plane().matters()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.get(
+    "/review-packets",
+    response_model=list[LegalReviewPacket],
+    dependencies=[Depends(require_operator)],
+)
+def review_packets():
+    try:
+        return get_legal_control_plane().review_packets()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.post(
+    "/review-packets/{packet_id}/decision",
+    response_model=LegalReviewPacket,
+    dependencies=[Depends(require_operator)],
+)
+def decide_review_packet(packet_id: str, body: LegalReviewDecisionRequest):
+    try:
+        return get_legal_control_plane().decide_review_packet(
+            packet_id,
+            body.decision,
+            body.note,
+        )
     except LegalControlPlaneError as exc:
         raise _canonical_error(exc) from exc
 

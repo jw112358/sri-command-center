@@ -388,6 +388,30 @@ export interface LegalConnectorStatus {
   status: 'READY' | 'STAGED' | 'BLOCKED';
 }
 
+export interface LegalReviewArtifact {
+  title: string;
+  kind: string;
+  driveFileId: string;
+  sha256: string;
+}
+
+export interface LegalReviewPacket {
+  packetId: string;
+  matterId: string;
+  matterVersion: number;
+  status: 'awaiting_review' | 'approved' | 'revision_requested' | 'rejected';
+  summary: string;
+  artifacts: LegalReviewArtifact[];
+  authorities: string[];
+  citationFindings: string[];
+  riskFlags: string[];
+  proposedExternalAction?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  decisionNote?: string | null;
+}
+
 export interface LegalDashboardState {
   activeCount: number;
   capacity: number;

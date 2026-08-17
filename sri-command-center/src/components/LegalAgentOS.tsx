@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   clearLegalOperatorSession,
+  decideLegalReviewPacket,
   getLegalAuthConfig,
   getLegalDashboard,
   getLegalOperatorSession,
+  getLegalReviewPackets,
   pauseLegalOS,
   resumeLegalOS,
   resolveLegalMatterClarifications,
@@ -13,6 +15,7 @@ import type {
   LegalAuthConfig,
   LegalDashboardState,
   LegalMatterSummary,
+  LegalReviewPacket,
   LegalSessionStatus,
 } from '../types';
 import LegalManualIntakeWorkspace from './LegalManualIntakeWorkspace';
@@ -70,6 +73,9 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
   const [clarificationNote, setClarificationNote] = useState('');
+  const [reviewPackets, setReviewPackets] = useState<LegalReviewPacket[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   const refreshDashboard = () => {
@@ -105,6 +111,33 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
     );
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (!operatorSession) {
+      setReviewPackets([]);
+      return;
+    }
+    let mounted = true;
+    const refresh = () => {
+      getLegalReviewPackets()
+        .then(packets => {
+          if (mounted) setReviewPackets(packets);
+        })
+        .catch(error => {
+          if (mounted) {
+            setOperatorMessage(
+              error instanceof Error ? error.message : 'Review packets could not be loaded.',
+            );
+          }
+        });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [operatorSession]);
 
   useEffect(() => {
     if (!authConfig?.enabled || operatorSession || !googleButtonRef.current) return;
@@ -176,6 +209,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const matters = dashboard?.matters ?? [];
   const selectedMatter = matters.find(matter => matter.matterId === selectedMatterId) ?? null;
   const qualityReviewMatters = matters.filter(matter => matter.status === 'quality_review');
+  const awaitingReviewPackets = reviewPackets.filter(packet => packet.status === 'awaiting_review');
   const connectors = dashboard?.connectors ?? [];
   const readyConnectors = connectors.filter(connector => connector.status === 'READY').length;
   const stagedConnectors = connectors.filter(connector => connector.status === 'STAGED').length;
@@ -214,6 +248,37 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
       setOperatorMessage(error instanceof Error ? error.message : 'Clarification resolution failed.');
     } finally {
       setOperatorBusy(false);
+    }
+  };
+
+  const handleReviewDecision = async (
+    packet: LegalReviewPacket,
+    decision: 'approve' | 'request_revision' | 'reject',
+  ) => {
+    const note = reviewNotes[packet.packetId]?.trim() ?? '';
+    if (!operatorSession || !note) {
+      setOperatorMessage('Enter a decision note before approving, requesting revision, or rejecting.');
+      return;
+    }
+    setReviewBusyId(packet.packetId);
+    setOperatorMessage('');
+    try {
+      const updated = await decideLegalReviewPacket(packet.packetId, decision, note);
+      setReviewPackets(current => current.map(item => (
+        item.packetId === updated.packetId ? updated : item
+      )));
+      setReviewNotes(current => ({ ...current, [packet.packetId]: '' }));
+      refreshDashboard();
+      const result = decision === 'approve'
+        ? 'approved for internal work-product completion; delivery remains locked'
+        : decision === 'request_revision'
+          ? 'returned to the autonomous revision pipeline'
+          : 'rejected and blocked from further action';
+      setOperatorMessage(`${packet.matterId} ${result}.`);
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'Review decision failed.');
+    } finally {
+      setReviewBusyId(null);
     }
   };
 
@@ -498,12 +563,97 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             <div className="panel-h">
               <span className="t">REVIEW + DELIVERY</span>
               <span className="corner">
-                {qualityReviewMatters.length
+                {awaitingReviewPackets.length
+                  ? `${awaitingReviewPackets.length} ${awaitingReviewPackets.length === 1 ? 'PACKET' : 'PACKETS'}`
+                  : qualityReviewMatters.length
                   ? `${qualityReviewMatters.length} IN PROGRESS`
                   : `${awaitingApproval} ${awaitingApproval === 1 ? 'PACKET' : 'PACKETS'}`}
               </span>
             </div>
-            {qualityReviewMatters.length ? (
+            {awaitingReviewPackets.length ? (
+              <div className="laos-review-packets">
+                {awaitingReviewPackets.map(packet => (
+                  <section className="laos-review-packet" key={packet.packetId}>
+                    <div className="laos-review-packet-head">
+                      <span>
+                        <strong>{matters.find(matter => matter.matterId === packet.matterId)?.displayName ?? packet.matterId}</strong>
+                        <small>{packet.matterId} · PACKET V{packet.matterVersion}</small>
+                      </span>
+                      <em>AWAITING YOUR DECISION</em>
+                    </div>
+                    <p>{packet.summary}</p>
+
+                    <div className="laos-review-artifacts">
+                      {packet.artifacts.map(artifact => (
+                        <a
+                          href={`https://drive.google.com/open?id=${encodeURIComponent(artifact.driveFileId)}`}
+                          key={`${artifact.driveFileId}-${artifact.sha256}`}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <strong>{artifact.title}</strong>
+                          <small>{artifact.kind.replace(/_/g, ' ').toUpperCase()} · OPEN IN PRIVATE DRIVE</small>
+                        </a>
+                      ))}
+                    </div>
+
+                    <div className="laos-review-findings">
+                      <div><strong>AUTHORITIES</strong><ul>{packet.authorities.length ? packet.authorities.map(item => <li key={item}>{item}</li>) : <li>None listed</li>}</ul></div>
+                      <div><strong>CITATION FINDINGS</strong><ul>{packet.citationFindings.length ? packet.citationFindings.map(item => <li key={item}>{item}</li>) : <li>None listed</li>}</ul></div>
+                      <div><strong>RISK FLAGS</strong><ul>{packet.riskFlags.length ? packet.riskFlags.map(item => <li key={item}>{item}</li>) : <li>None listed</li>}</ul></div>
+                    </div>
+
+                    {packet.proposedExternalAction && (
+                      <div className="laos-delivery-gate">
+                        <strong>PROPOSED FUTURE EXTERNAL ACTION · NOT AUTHORIZED</strong>
+                        <p>{packet.proposedExternalAction}</p>
+                      </div>
+                    )}
+
+                    <label className="laos-review-note">
+                      DECISION NOTE · REQUIRED
+                      <textarea
+                        onChange={event => setReviewNotes(current => ({
+                          ...current,
+                          [packet.packetId]: event.target.value,
+                        }))}
+                        placeholder="Record your approval, revision instructions, or reason for rejection."
+                        value={reviewNotes[packet.packetId] ?? ''}
+                      />
+                    </label>
+                    <div className="laos-review-actions">
+                      <button
+                        className="btn solid"
+                        disabled={reviewBusyId === packet.packetId || !(reviewNotes[packet.packetId]?.trim())}
+                        onClick={() => handleReviewDecision(packet, 'approve')}
+                        type="button"
+                      >
+                        APPROVE WORK PRODUCT
+                      </button>
+                      <button
+                        className="btn"
+                        disabled={reviewBusyId === packet.packetId || !(reviewNotes[packet.packetId]?.trim())}
+                        onClick={() => handleReviewDecision(packet, 'request_revision')}
+                        type="button"
+                      >
+                        REQUEST REVISION
+                      </button>
+                      <button
+                        className="btn danger"
+                        disabled={reviewBusyId === packet.packetId || !(reviewNotes[packet.packetId]?.trim())}
+                        onClick={() => handleReviewDecision(packet, 'reject')}
+                        type="button"
+                      >
+                        REJECT
+                      </button>
+                    </div>
+                    <small className="laos-review-control-note">
+                      Approving this packet does not authorize email, delivery, filing, calendar activity, or any other external action.
+                    </small>
+                  </section>
+                ))}
+              </div>
+            ) : qualityReviewMatters.length ? (
               <div className="laos-review-empty" role="status" aria-live="polite">
                 <span>QA</span>
                 <div>

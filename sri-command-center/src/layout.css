@@ -669,6 +669,33 @@
 }
 .laos-review-empty p { margin-bottom: 0; }
 
+.laos-review-packets { display: grid; gap: 12px; padding: 12px; }
+.laos-review-packet { padding: 15px; border: 1px solid var(--border); background: rgba(255,255,255,.015); }
+.laos-review-packet-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.laos-review-packet-head span { display: grid; gap: 4px; }
+.laos-review-packet-head strong { color: var(--white); font-size: 11px; letter-spacing: .7px; }
+.laos-review-packet-head small { color: var(--muted-2); font-size: 8px; letter-spacing: .6px; }
+.laos-review-packet-head em { color: var(--gold); font-size: 8px; font-style: normal; letter-spacing: .8px; }
+.laos-review-packet > p { color: var(--muted); font-size: 9.5px; line-height: 1.55; }
+.laos-review-artifacts { display: grid; gap: 7px; margin: 12px 0; }
+.laos-review-artifacts a { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--border-soft); background: var(--panel-2); text-decoration: none; }
+.laos-review-artifacts a:hover { border-color: var(--gold-dim); }
+.laos-review-artifacts strong { color: var(--gold); font-size: 9.5px; }
+.laos-review-artifacts small { color: var(--muted-2); font-size: 7.5px; }
+.laos-review-findings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.laos-review-findings > div { padding: 10px; border: 1px solid var(--border-soft); }
+.laos-review-findings strong { color: var(--white); font-size: 8px; letter-spacing: .8px; }
+.laos-review-findings ul { margin: 7px 0 0; padding-left: 15px; color: var(--muted); font-size: 8px; line-height: 1.5; }
+.laos-delivery-gate { margin-top: 10px; padding: 10px; border-left: 2px solid #ff9a7f; background: rgba(255,92,67,.05); }
+.laos-delivery-gate strong { color: #ff9a7f; font-size: 8px; letter-spacing: .65px; }
+.laos-delivery-gate p { margin: 6px 0 0; color: var(--muted); font-size: 8.5px; line-height: 1.45; }
+.laos-review-note { display: grid; gap: 6px; margin-top: 12px; color: var(--muted-2); font-size: 8px; letter-spacing: .7px; }
+.laos-review-note textarea { min-height: 72px; padding: 9px; resize: vertical; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-deep); color: var(--white); font: 10px var(--font-ui); }
+.laos-review-note textarea:focus { border-color: var(--gold-dim); outline: none; }
+.laos-review-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.laos-review-actions .btn:disabled { cursor: not-allowed; opacity: .45; }
+.laos-review-control-note { display: block; margin-top: 10px; color: #d7a06c; font-size: 8px; line-height: 1.45; }
+
 .laos-connectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .laos-connectors > div {
   display: grid;
@@ -709,6 +736,7 @@
   .intake-form .span-2 { grid-column: auto; }
   .laos-form-action { grid-column: 1; align-items: flex-start; flex-direction: column; }
   .laos-connectors { grid-template-columns: 1fr; }
+  .laos-review-findings { grid-template-columns: 1fr; }
 }
 
 /* Session Briefs — cross-project continuity ledger */
