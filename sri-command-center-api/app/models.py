@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -566,6 +566,10 @@ class LegalMatterSummary(BaseModel):
     practiceLane: Literal["civil", "appeal"]
     status: LegalMatterStatus
     version: int
+    currentSummary: str = ""
+    exactNextAction: str = ""
+    intakeCompletenessScore: Optional[int] = None
+    blockingGaps: List[str] = Field(default_factory=list)
     sourceChannel: Literal["gmail", "manual", "command_center", "master_builder"]
     createdAt: str
     updatedAt: str
@@ -600,6 +604,12 @@ class LegalIntakeReceipt(BaseModel):
     duplicate: bool = False
     revisionMatched: bool = False
     acknowledgementStatus: Literal["draft_pending_approval"] = "draft_pending_approval"
+
+
+class LegalMatterClarificationRequest(BaseModel):
+    expectedVersion: int = Field(ge=1)
+    answers: Dict[str, str] = Field(min_length=1, max_length=100)
+    operatorNote: str = Field(default="", max_length=10_000)
 
 
 class LegalAuthConfig(BaseModel):

@@ -363,6 +363,10 @@ export interface LegalMatterSummary {
   practiceLane: 'civil' | 'appeal';
   status: LegalMatterStatus;
   version: number;
+  currentSummary: string;
+  exactNextAction: string;
+  intakeCompletenessScore?: number | null;
+  blockingGaps: string[];
   sourceChannel: 'gmail' | 'manual' | 'command_center' | 'master_builder';
   createdAt: string;
   updatedAt: string;

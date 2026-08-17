@@ -427,17 +427,44 @@
 .laos-empty code { color: var(--gold); font: inherit; }
 .laos-matter-list { max-height: 190px; overflow: auto; }
 .laos-matter-row {
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 12px;
   padding: 11px 13px;
   border-bottom: 1px solid var(--border-soft);
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.laos-matter-row:hover,
+.laos-matter-row.selected { background: var(--gold-soft); }
 .laos-matter-row > span:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .laos-matter-row > span:first-child strong { color: var(--white); font-size: 10px; letter-spacing: .8px; }
 .laos-matter-row > span:first-child small { color: var(--muted-2); font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .laos-matter-row > em { color: var(--gold-dim); font-size: 8px; font-style: normal; letter-spacing: .8px; }
+.laos-matter-detail { padding: 15px; border-top: 1px solid var(--gold-dim); background: rgba(255,215,0,.025); }
+.laos-matter-detail-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.laos-matter-detail-heading > span { display: flex; flex-direction: column; gap: 4px; }
+.laos-matter-detail-heading strong { color: var(--white); font-size: 11px; letter-spacing: .7px; }
+.laos-matter-detail-heading small { color: var(--muted-2); font-size: 8px; }
+.laos-matter-detail > p { color: var(--muted); font-size: 9.5px; line-height: 1.55; }
+.laos-next-action { padding: 10px; border-left: 2px solid var(--gold); background: var(--bg-deep); color: var(--white); font-size: 9px; line-height: 1.5; }
+.laos-next-action span { display: block; margin-bottom: 4px; color: var(--gold); font-size: 7.5px; letter-spacing: 1px; }
+.laos-completeness { margin-top: 10px; color: var(--muted-2); font-size: 8px; letter-spacing: .8px; }
+.laos-completeness strong { color: var(--gold); }
+.laos-clarifications { display: grid; gap: 11px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.laos-clarifications > strong { color: var(--gold); font-size: 10px; letter-spacing: .8px; }
+.laos-clarifications > p { margin: 0; color: var(--muted); font-size: 8.5px; line-height: 1.5; }
+.laos-clarifications label { display: grid; gap: 6px; color: var(--muted); font-size: 8.5px; letter-spacing: .5px; }
+.laos-clarifications textarea { box-sizing: border-box; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-deep); color: var(--white); font: 10px var(--font-ui); resize: vertical; outline: none; }
+.laos-clarifications textarea:focus { border-color: var(--gold-dim); }
+.laos-clarifications .btn { justify-self: start; }
 
 .laos-rules { padding: 4px 12px; }
 .laos-rules > div {

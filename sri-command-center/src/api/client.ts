@@ -11,7 +11,7 @@ import type {
   DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   MarketingDashboard,
   EventEdgeDashboard, EventEdgeManualTrade,
-  LegalIntakeReceipt, LegalOperatorSession,
+  LegalIntakeReceipt, LegalMatterSummary, LegalOperatorSession,
   LegalSessionStatus,
 } from '../types';
 import * as mock from '../mock/data';
@@ -393,6 +393,16 @@ export async function submitLegalIntake(
   body: Record<string, unknown>,
 ): Promise<LegalIntakeReceipt> {
   return apiFetch<LegalIntakeReceipt>('/api/legal/intake', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function resolveLegalMatterClarifications(
+  matterId: string,
+  body: { expectedVersion: number; answers: Record<string, string>; operatorNote?: string },
+): Promise<LegalMatterSummary> {
+  return apiFetch<LegalMatterSummary>(`/api/legal/matters/${encodeURIComponent(matterId)}/clarifications`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

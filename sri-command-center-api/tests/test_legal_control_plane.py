@@ -32,6 +32,9 @@ class LegalControlPlaneTests(unittest.TestCase):
             "client_name": "Example Client",
             "case_number": "2026-CP-00-0001",
             "current_summary": "Research underway.",
+            "exact_next_action": "Complete targeted clarification.",
+            "intake_completeness_score": 72,
+            "blocking_gaps": ["Requested relief"],
             "future_deadlines": ["2099-01-01"],
             "created_at": "2026-08-13T12:00:00Z",
             "updated_at": "2026-08-13T13:00:00Z",
@@ -74,6 +77,8 @@ class LegalControlPlaneTests(unittest.TestCase):
         self.assertEqual("MAT-001", state.matters[0].matterId)
         self.assertEqual("command_center", state.matters[0].sourceChannel)
         self.assertEqual("READY", state.connectors[0].status)
+        self.assertEqual(["Requested relief"], state.matters[0].blockingGaps)
+        self.assertEqual(72, state.matters[0].intakeCompletenessScore)
         self.assertEqual("STAGED", state.connectors[-1].status)
         self.assertEqual("AI DRAFT + QA", state.connectors[-1].name)
         self.assertTrue(state.paused)
@@ -173,6 +178,34 @@ class LegalControlPlaneTests(unittest.TestCase):
                 {"schema_version": "1.0", "channel": "manual"}
             )
         self.assertEqual(422, raised.exception.status_code)
+
+    @patch("app.services.legal_control_plane.httpx.post")
+    def test_operator_clarifications_are_forwarded_to_canonical_matter(self, post):
+        matter = self.matter()
+        matter.update({"status": "received", "blocking_gaps": []})
+        post.return_value = self.response(matter)
+
+        updated = self.control_plane.resolve_clarifications(
+            "MAT-001",
+            3,
+            {"Requested relief": "Synthetic declaratory relief."},
+            "Synthetic acceptance only.",
+        )
+
+        self.assertEqual("received", updated.status)
+        self.assertEqual([], updated.blockingGaps)
+        self.assertEqual(
+            "https://legal.example.test/api/matters/MAT-001/clarifications",
+            post.call_args.args[0],
+        )
+        self.assertEqual(
+            {
+                "expected_version": 3,
+                "answers": {"Requested relief": "Synthetic declaratory relief."},
+                "operator_note": "Synthetic acceptance only.",
+            },
+            post.call_args.kwargs["json"],
+        )
 
 
 if __name__ == "__main__":

@@ -6,11 +6,13 @@ import {
   getLegalOperatorSession,
   pauseLegalOS,
   resumeLegalOS,
+  resolveLegalMatterClarifications,
   signInLegalOperator,
 } from '../api/client';
 import type {
   LegalAuthConfig,
   LegalDashboardState,
+  LegalMatterSummary,
   LegalSessionStatus,
 } from '../types';
 import LegalManualIntakeWorkspace from './LegalManualIntakeWorkspace';
@@ -65,6 +67,9 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [operatorSession, setOperatorSession] = useState<LegalSessionStatus | null>(null);
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [operatorMessage, setOperatorMessage] = useState('');
+  const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
+  const [clarificationNote, setClarificationNote] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   const refreshDashboard = () => {
@@ -169,10 +174,47 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const awaitingApproval = dashboard?.awaitingApproval ?? 0;
   const upcomingDeadlines = dashboard?.upcomingDeadlines ?? 0;
   const matters = dashboard?.matters ?? [];
+  const selectedMatter = matters.find(matter => matter.matterId === selectedMatterId) ?? null;
   const connectors = dashboard?.connectors ?? [];
   const readyConnectors = connectors.filter(connector => connector.status === 'READY').length;
   const stagedConnectors = connectors.filter(connector => connector.status === 'STAGED').length;
   const gmailConnector = connectors.find(connector => connector.name === 'GMAIL');
+
+  const selectMatter = (matter: LegalMatterSummary) => {
+    setSelectedMatterId(matter.matterId);
+    setClarificationAnswers(
+      Object.fromEntries((matter.blockingGaps ?? []).map(gap => [gap, ''])),
+    );
+    setClarificationNote('');
+  };
+
+  const handleClarificationResolution = async () => {
+    if (!operatorSession || !selectedMatter || selectedMatter.status !== 'needs_operator') return;
+    if (selectedMatter.blockingGaps.some(gap => !clarificationAnswers[gap]?.trim())) {
+      setOperatorMessage('Every listed clarification requires a response before the matter can resume.');
+      return;
+    }
+    setOperatorBusy(true);
+    setOperatorMessage('');
+    try {
+      const updated = await resolveLegalMatterClarifications(selectedMatter.matterId, {
+        expectedVersion: selectedMatter.version,
+        answers: Object.fromEntries(
+          selectedMatter.blockingGaps.map(gap => [gap, clarificationAnswers[gap].trim()]),
+        ),
+        operatorNote: clarificationNote.trim(),
+      });
+      setDashboard(current => current ? {
+        ...current,
+        matters: current.matters.map(matter => matter.matterId === updated.matterId ? updated : matter),
+      } : current);
+      setOperatorMessage(`${updated.matterId} clarifications archived to private Drive; intake validation may resume.`);
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'Clarification resolution failed.');
+    } finally {
+      setOperatorBusy(false);
+    }
+  };
 
   return (
     <section className="laos" aria-label="Legal Agent OS">
@@ -287,7 +329,12 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
               ) : (
                 <div className="laos-matter-list">
                   {matters.map(matter => (
-                    <div className="laos-matter-row" key={matter.matterId}>
+                    <button
+                      className={'laos-matter-row' + (selectedMatterId === matter.matterId ? ' selected' : '')}
+                      key={matter.matterId}
+                      onClick={() => selectMatter(matter)}
+                      type="button"
+                    >
                       <span>
                         <strong>{matter.displayName}</strong>
                         <small>{matter.matterId} · V{matter.version} · {matter.practiceLane.toUpperCase()}</small>
@@ -297,8 +344,47 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
                         <span className="bd"></span>
                         {matter.status.replace(/_/g, ' ').toUpperCase()}
                       </span>
-                    </div>
+                    </button>
                   ))}
+                </div>
+              )}
+              {selectedMatter && (
+                <div className="laos-matter-detail">
+                  <div className="laos-matter-detail-heading">
+                    <span>
+                      <strong>{selectedMatter.displayName}</strong>
+                      <small>{selectedMatter.matterId} · VERSION {selectedMatter.version}</small>
+                    </span>
+                    <button className="secondary-button" type="button" onClick={() => setSelectedMatterId(null)}>CLOSE</button>
+                  </div>
+                  <p>{selectedMatter.currentSummary || 'No matter summary is available yet.'}</p>
+                  <div className="laos-next-action"><span>NEXT ACTION</span>{selectedMatter.exactNextAction || 'Await the next canonical workflow update.'}</div>
+                  {selectedMatter.intakeCompletenessScore != null && (
+                    <div className="laos-completeness">INTAKE COMPLETENESS <strong>{selectedMatter.intakeCompletenessScore}%</strong></div>
+                  )}
+                  {selectedMatter.status === 'needs_operator' && selectedMatter.blockingGaps.length > 0 && (
+                    <div className="laos-clarifications">
+                      <strong>OPERATOR CLARIFICATIONS REQUIRED</strong>
+                      <p>Responses are archived in the private Drive matter folder. MongoDB receives only the resolved field names and artifact provenance.</p>
+                      {selectedMatter.blockingGaps.map(gap => (
+                        <label key={gap}>
+                          {gap}
+                          <textarea
+                            rows={3}
+                            value={clarificationAnswers[gap] ?? ''}
+                            onChange={event => setClarificationAnswers(current => ({ ...current, [gap]: event.target.value }))}
+                          />
+                        </label>
+                      ))}
+                      <label>
+                        OPERATOR NOTE (OPTIONAL)
+                        <textarea rows={3} value={clarificationNote} onChange={event => setClarificationNote(event.target.value)} />
+                      </label>
+                      <button className="btn solid" disabled={operatorBusy || !operatorSession} onClick={handleClarificationResolution} type="button">
+                        {operatorBusy ? 'ARCHIVING…' : 'ARCHIVE RESPONSES + RESUME MATTER'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </article>

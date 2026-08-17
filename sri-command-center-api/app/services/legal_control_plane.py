@@ -164,6 +164,10 @@ class LegalControlPlane:
             practiceLane=record.get("practice_lane", "civil"),
             status=record["status"],
             version=record.get("version", 1),
+            currentSummary=record.get("current_summary", ""),
+            exactNextAction=record.get("exact_next_action", ""),
+            intakeCompletenessScore=record.get("intake_completeness_score"),
+            blockingGaps=record.get("blocking_gaps", []),
             sourceChannel=record["source_channel"],
             createdAt=record["created_at"],
             updatedAt=record["updated_at"],
@@ -276,6 +280,23 @@ class LegalControlPlane:
             revisionMatched=bool(payload.get("request_type") == "revision"),
             acknowledgementStatus="draft_pending_approval",
         )
+
+    def resolve_clarifications(
+        self,
+        matter_id: str,
+        expected_version: int,
+        answers: dict[str, str],
+        operator_note: str,
+    ) -> LegalMatterSummary:
+        record = self._post_json(
+            f"/api/matters/{matter_id}/clarifications",
+            {
+                "expected_version": expected_version,
+                "answers": answers,
+                "operator_note": operator_note,
+            },
+        )
+        return self._matter(record)
 
     def set_pipeline_paused(self, paused: bool) -> bool:
         result = self._post(
