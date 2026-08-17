@@ -16,6 +16,7 @@ from app.models import (
     LegalGoogleCredentialRequest,
     LegalIntakeReceipt,
     LegalMatterSummary,
+    LegalMatterClarificationRequest,
     LegalOperatorSession,
     LegalSessionStatus,
 )
@@ -120,6 +121,23 @@ def dashboard():
 def matters():
     try:
         return get_legal_control_plane().matters()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.post(
+    "/matters/{matter_id}/clarifications",
+    response_model=LegalMatterSummary,
+    dependencies=[Depends(require_operator)],
+)
+def resolve_clarifications(matter_id: str, body: LegalMatterClarificationRequest):
+    try:
+        return get_legal_control_plane().resolve_clarifications(
+            matter_id,
+            body.expectedVersion,
+            body.answers,
+            body.operatorNote,
+        )
     except LegalControlPlaneError as exc:
         raise _canonical_error(exc) from exc
 
