@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 
 from app.config import settings
 from app.models import (
@@ -16,6 +16,9 @@ from app.models import (
     LegalGoogleCredentialRequest,
     LegalIntakeReceipt,
     LegalMatterSummary,
+    LegalMatterDocument,
+    LegalDocumentExtractionPreview,
+    LegalDocumentReviewRequest,
     LegalMatterClarificationRequest,
     LegalOperatorSession,
     LegalReviewDecisionRequest,
@@ -123,6 +126,83 @@ def dashboard():
 def matters():
     try:
         return get_legal_control_plane().matters()
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.get(
+    "/matters/{matter_id}/documents",
+    response_model=list[LegalMatterDocument],
+    dependencies=[Depends(require_operator)],
+)
+def matter_documents(matter_id: str):
+    try:
+        return get_legal_control_plane().matter_documents(matter_id)
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.post(
+    "/matters/{matter_id}/documents",
+    response_model=LegalMatterDocument,
+    status_code=201,
+    dependencies=[Depends(require_operator)],
+)
+async def upload_matter_document(
+    matter_id: str,
+    file: UploadFile = File(...),
+    category: str = Form(default="other"),
+    record_status: str = Form(default="received"),
+    confidentiality: str = Form(default="privileged"),
+):
+    filename = file.filename or "document"
+    content_type = file.content_type or "application/octet-stream"
+    content = await file.read(settings.legal_attachment_max_bytes + 1)
+    await file.close()
+    if len(content) > settings.legal_attachment_max_bytes:
+        raise HTTPException(413, "Document exceeds the configured upload limit")
+    if not content:
+        raise HTTPException(422, "Document is empty")
+    try:
+        return get_legal_control_plane().upload_matter_document(
+            matter_id,
+            filename=filename,
+            content_type=content_type,
+            content=content,
+            category=category,
+            record_status=record_status,
+            confidentiality=confidentiality,
+        )
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.get(
+    "/matters/{matter_id}/documents/{document_id}/preview",
+    response_model=LegalDocumentExtractionPreview,
+    dependencies=[Depends(require_operator)],
+)
+def document_preview(matter_id: str, document_id: str):
+    try:
+        return get_legal_control_plane().document_preview(matter_id, document_id)
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.post(
+    "/matters/{matter_id}/documents/{document_id}/review",
+    response_model=LegalMatterDocument,
+    dependencies=[Depends(require_operator)],
+)
+def review_document(matter_id: str, document_id: str, body: LegalDocumentReviewRequest):
+    try:
+        return get_legal_control_plane().review_document(
+            matter_id,
+            document_id,
+            action=body.action,
+            expected_version=body.expectedVersion,
+            note=body.note,
+        )
     except LegalControlPlaneError as exc:
         raise _canonical_error(exc) from exc
 

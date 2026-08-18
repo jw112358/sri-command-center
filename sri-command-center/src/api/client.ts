@@ -13,6 +13,7 @@ import type {
   EventEdgeDashboard, EventEdgeManualTrade,
   LegalIntakeReceipt, LegalMatterSummary, LegalOperatorSession,
   LegalReviewPacket, LegalSessionStatus,
+  LegalMatterDocument, LegalDocumentExtractionPreview,
 } from '../types';
 import * as mock from '../mock/data';
 
@@ -29,7 +30,7 @@ const ALLOW_MOCK_DATA =
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (init?.body && !headers.has('Content-Type')) {
+  if (init?.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   // The Jeff-only operator session protects all private dashboard reads, not
@@ -406,6 +407,48 @@ export async function resolveLegalMatterClarifications(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function getLegalMatterDocuments(matterId: string): Promise<LegalMatterDocument[]> {
+  return apiFetch<LegalMatterDocument[]>(`/api/legal/matters/${encodeURIComponent(matterId)}/documents`);
+}
+
+export async function uploadLegalMatterDocument(
+  matterId: string,
+  file: File,
+  metadata: { category: string; recordStatus: string; confidentiality: string },
+): Promise<LegalMatterDocument> {
+  const body = new FormData();
+  body.append('file', file, file.name);
+  body.append('category', metadata.category);
+  body.append('record_status', metadata.recordStatus);
+  body.append('confidentiality', metadata.confidentiality);
+  return apiFetch<LegalMatterDocument>(`/api/legal/matters/${encodeURIComponent(matterId)}/documents`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function getLegalDocumentPreview(
+  matterId: string,
+  documentId: string,
+): Promise<LegalDocumentExtractionPreview> {
+  return apiFetch<LegalDocumentExtractionPreview>(
+    `/api/legal/matters/${encodeURIComponent(matterId)}/documents/${encodeURIComponent(documentId)}/preview`,
+  );
+}
+
+export async function reviewLegalMatterDocument(
+  matterId: string,
+  documentId: string,
+  action: 'accept' | 'exclude' | 'supersede',
+  expectedVersion: number,
+  note: string,
+): Promise<LegalMatterDocument> {
+  return apiFetch<LegalMatterDocument>(
+    `/api/legal/matters/${encodeURIComponent(matterId)}/documents/${encodeURIComponent(documentId)}/review`,
+    { method: 'POST', body: JSON.stringify({ action, expectedVersion, note }) },
+  );
 }
 
 export async function getLegalReviewPackets(): Promise<LegalReviewPacket[]> {

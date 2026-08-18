@@ -66,6 +66,31 @@ class LegalControlPlaneTests(unittest.TestCase):
             "decision_note": None,
         }
 
+    @staticmethod
+    def document():
+        return {
+            "document_id": "doc-001",
+            "matter_id": "MAT-001",
+            "version": 3,
+            "name": "synthetic-motion.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "size_bytes": 4096,
+            "sha256": "b" * 64,
+            "drive_file_id": "drive-source-001",
+            "category": "motion_or_brief",
+            "record_status": "filed",
+            "confidentiality": "privileged",
+            "ingestion_status": "ready_for_review",
+            "extraction_method": "docx_xml",
+            "extracted_character_count": 1200,
+            "page_count": None,
+            "warnings": [],
+            "review_note": "",
+            "accepted_at": None,
+            "created_at": "2026-08-17T16:00:00Z",
+            "updated_at": "2026-08-17T16:01:00Z",
+        }
+
     @patch("app.services.legal_control_plane.httpx.get")
     def test_dashboard_maps_only_canonical_state(self, get):
         get.side_effect = [
@@ -157,6 +182,39 @@ class LegalControlPlaneTests(unittest.TestCase):
             "https://legal.example.test/api/review-packets",
             get.call_args.args[0],
         )
+
+    @patch("app.services.legal_control_plane.httpx.get")
+    def test_document_list_and_preview_preserve_drive_provenance(self, get):
+        get.side_effect = [
+            self.response([self.document()]),
+            self.response(
+                {
+                    "document": self.document(),
+                    "text_excerpt": "Synthetic extracted record.",
+                    "provenance_notice": "Unverified until accepted.",
+                }
+            ),
+        ]
+        documents = self.control_plane.matter_documents("MAT-001")
+        preview = self.control_plane.document_preview("MAT-001", "doc-001")
+        self.assertEqual("drive-source-001", documents[0].driveFileId)
+        self.assertEqual("Synthetic extracted record.", preview.textExcerpt)
+
+    @patch("app.services.legal_control_plane.httpx.post")
+    def test_document_upload_forwards_private_file_and_metadata(self, post):
+        post.return_value = self.response(self.document(), status_code=201)
+        document = self.control_plane.upload_matter_document(
+            "MAT-001",
+            filename="synthetic-motion.docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            content=b"synthetic-docx",
+            category="motion_or_brief",
+            record_status="filed",
+            confidentiality="privileged",
+        )
+        self.assertEqual("doc-001", document.documentId)
+        self.assertEqual(b"synthetic-docx", post.call_args.kwargs["files"]["file"][1])
+        self.assertEqual("motion_or_brief", post.call_args.kwargs["data"]["category"])
 
     @patch("app.services.legal_control_plane.httpx.post")
     def test_review_decision_is_forwarded_without_authorizing_delivery(self, post):

@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import outputCatalog from "../data/document-output-types.sc.v1.json";
 import CompleteNewMatterQuestionnaire from "./CompleteNewMatterQuestionnaire";
-import { submitLegalIntake } from "../api/client";
+import { submitLegalIntake, uploadLegalMatterDocument } from "../api/client";
 
 type SubmitState =
   | { kind: "idle" }
@@ -65,6 +65,7 @@ export default function LegalManualIntakeWorkspace({
   });
   const [deliverables, setDeliverables] = useState<DeliverableDraft[]>(() => [initialDeliverable("new_matter", "civil")]);
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
+  const [sourceFiles, setSourceFiles] = useState<File[]>([]);
 
   const filteredOutputs = useMemo(
     () => availableOutputs(requestType, practiceLane),
@@ -184,7 +185,27 @@ export default function LegalManualIntakeWorkspace({
 
     try {
       const result = await submitLegalIntake(payload);
-      setState({ kind: "success", message: `${result.matter.matterId} was received and is awaiting intake validation.` });
+      const uploaded = [];
+      try {
+        for (const file of sourceFiles) {
+          uploaded.push(await uploadLegalMatterDocument(result.matter.matterId, file, {
+            category: "other",
+            recordStatus: "received",
+            confidentiality: String(form.get("confidentiality") ?? "privileged"),
+          }));
+        }
+      } catch (error) {
+        onCreated?.();
+        setState({
+          kind: "error",
+          message: `${result.matter.matterId} was received, but its source-document upload stopped: ${error instanceof Error ? error.message : "upload failed"}. The matter was not lost; retry the file from Documents & Sources.`,
+        });
+        return;
+      }
+      setState({
+        kind: "success",
+        message: `${result.matter.matterId} was received${uploaded.length ? ` with ${uploaded.length} source document(s) ready for context review` : ""}.`,
+      });
       onCreated?.();
       formElement.reset();
       setRequestType("new_matter");
@@ -196,6 +217,7 @@ export default function LegalManualIntakeWorkspace({
         no_external_deadline: false,
       });
       setDeliverables([initialDeliverable("new_matter", "civil")]);
+      setSourceFiles([]);
     } catch (error) {
       setState({ kind: "error", message: error instanceof Error ? error.message : "The intake could not be saved." });
     }
@@ -255,6 +277,27 @@ export default function LegalManualIntakeWorkspace({
           })}
         </div>
         {requestType !== "transcription" ? <button className="secondary-button" type="button" onClick={() => setDeliverables((current) => [...current, initialDeliverable(requestType, practiceLane)])}>Add another deliverable</button> : null}
+      </fieldset>
+
+      <fieldset className="source-document-upload">
+        <legend>Case documents and source material</legend>
+        <p className="form-context">Attach client intake, attorney strategy notes, existing filings, orders, exhibits, or prior drafts. Originals are preserved in private Drive; extracted text does not enter drafting context until you accept it.</p>
+        <label className="file-drop">
+          Select source documents
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.docx,.txt,.md,.json,.eml,.csv"
+            onChange={event => setSourceFiles(Array.from(event.target.files ?? []))}
+          />
+        </label>
+        {sourceFiles.length > 0 ? (
+          <div className="source-file-queue">
+            {sourceFiles.map(file => (
+              <span key={`${file.name}-${file.lastModified}`}><strong>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1024))} KB</small></span>
+            ))}
+          </div>
+        ) : null}
       </fieldset>
 
       {requestType === "new_matter" && intakeDepth === "complete" ? <CompleteNewMatterQuestionnaire answers={questionnaireAnswers} onChange={changeQuestionnaire} /> : null}
