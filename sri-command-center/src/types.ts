@@ -382,6 +382,35 @@ export interface LegalAssignmentSummary {
   outcomeStatus?: LegalMatterStatus | null;
 }
 
+export interface LegalMatterDocument {
+  documentId: string;
+  matterId: string;
+  version: number;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  driveFileId: string;
+  category: string;
+  recordStatus: string;
+  confidentiality: string;
+  ingestionStatus: 'uploaded' | 'processing' | 'ready_for_review' | 'accepted' | 'excluded' | 'superseded' | 'needs_ocr' | 'failed';
+  extractionMethod?: string | null;
+  extractedCharacterCount: number;
+  pageCount?: number | null;
+  warnings: string[];
+  reviewNote: string;
+  acceptedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalDocumentExtractionPreview {
+  document: LegalMatterDocument;
+  textExcerpt: string;
+  provenanceNotice: string;
+}
+
 export interface LegalConnectorStatus {
   name: string;
   detail: string;

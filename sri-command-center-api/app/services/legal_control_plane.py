@@ -13,6 +13,8 @@ from app.models import (
     LegalDashboardState,
     LegalIntakeReceipt,
     LegalMatterSummary,
+    LegalMatterDocument,
+    LegalDocumentExtractionPreview,
     LegalReviewArtifact,
     LegalReviewPacket,
 )
@@ -151,6 +153,47 @@ class LegalControlPlane:
                 "Canonical Legal Agent OS returned an invalid response"
             ) from exc
 
+    def _post_multipart(
+        self,
+        path: str,
+        *,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        fields: dict[str, str],
+    ) -> Any:
+        if not self.configured:
+            raise LegalControlPlaneError("Canonical Legal Agent OS connection is not configured")
+        try:
+            response = httpx.post(
+                f"{self.base_url}{path}",
+                headers={"X-Operator-Token": self.operator_token},
+                files={"file": (filename, content, content_type)},
+                data=fields,
+                timeout=max(self.timeout_seconds, 30.0),
+                follow_redirects=False,
+            )
+        except httpx.RequestError as exc:
+            raise LegalControlPlaneError("Canonical Legal Agent OS is temporarily unreachable") from exc
+        if response.status_code >= 400:
+            detail = "Canonical Legal Agent OS rejected the document upload"
+            try:
+                upstream_detail = response.json().get("detail")
+                if isinstance(upstream_detail, str):
+                    detail = upstream_detail
+            except (ValueError, AttributeError):
+                pass
+            raise LegalControlPlaneError(
+                detail,
+                status_code=response.status_code if response.status_code in {400, 401, 403, 404, 409, 413, 422} else 502,
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise LegalControlPlaneError(
+                "Canonical Legal Agent OS returned an invalid response"
+            ) from exc
+
     @staticmethod
     def _matter(record: dict[str, Any]) -> LegalMatterSummary:
         display_name = (
@@ -171,6 +214,31 @@ class LegalControlPlane:
             intakeCompletenessScore=record.get("intake_completeness_score"),
             blockingGaps=record.get("blocking_gaps", []),
             sourceChannel=record["source_channel"],
+            createdAt=record["created_at"],
+            updatedAt=record["updated_at"],
+        )
+
+    @staticmethod
+    def _document(record: dict[str, Any]) -> LegalMatterDocument:
+        return LegalMatterDocument(
+            documentId=record["document_id"],
+            matterId=record["matter_id"],
+            version=record["version"],
+            name=record["name"],
+            mimeType=record["mime_type"],
+            sizeBytes=record["size_bytes"],
+            sha256=record["sha256"],
+            driveFileId=record["drive_file_id"],
+            category=record["category"],
+            recordStatus=record["record_status"],
+            confidentiality=record["confidentiality"],
+            ingestionStatus=record["ingestion_status"],
+            extractionMethod=record.get("extraction_method"),
+            extractedCharacterCount=record.get("extracted_character_count", 0),
+            pageCount=record.get("page_count"),
+            warnings=record.get("warnings", []),
+            reviewNote=record.get("review_note", ""),
+            acceptedAt=record.get("accepted_at"),
             createdAt=record["created_at"],
             updatedAt=record["updated_at"],
         )
@@ -275,6 +343,57 @@ class LegalControlPlane:
     def matters(self) -> list[LegalMatterSummary]:
         records = self._request("/api/matters")
         return [self._matter(record) for record in records]
+
+    def matter_documents(self, matter_id: str) -> list[LegalMatterDocument]:
+        records = self._request(f"/api/matters/{matter_id}/documents")
+        return [self._document(record) for record in records]
+
+    def upload_matter_document(
+        self,
+        matter_id: str,
+        *,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        category: str,
+        record_status: str,
+        confidentiality: str,
+    ) -> LegalMatterDocument:
+        record = self._post_multipart(
+            f"/api/matters/{matter_id}/documents",
+            filename=filename,
+            content_type=content_type,
+            content=content,
+            fields={
+                "category": category,
+                "record_status": record_status,
+                "confidentiality": confidentiality,
+            },
+        )
+        return self._document(record)
+
+    def document_preview(self, matter_id: str, document_id: str) -> LegalDocumentExtractionPreview:
+        record = self._request(f"/api/matters/{matter_id}/documents/{document_id}/preview")
+        return LegalDocumentExtractionPreview(
+            document=self._document(record["document"]),
+            textExcerpt=record.get("text_excerpt", ""),
+            provenanceNotice=record.get("provenance_notice", ""),
+        )
+
+    def review_document(
+        self,
+        matter_id: str,
+        document_id: str,
+        *,
+        action: str,
+        expected_version: int,
+        note: str,
+    ) -> LegalMatterDocument:
+        record = self._post_json(
+            f"/api/matters/{matter_id}/documents/{document_id}/review",
+            {"action": action, "expected_version": expected_version, "note": note},
+        )
+        return self._document(record)
 
     def review_packets(self) -> list[LegalReviewPacket]:
         records = self._request("/api/review-packets")

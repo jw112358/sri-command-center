@@ -3,6 +3,7 @@ uvicorn[standard]==0.29.0
 websockets==12.0
 python-dotenv==1.0.1
 httpx==0.27.0
+python-multipart==0.0.20
 
 # Google Drive
 google-auth==2.29.0

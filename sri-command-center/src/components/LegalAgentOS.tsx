@@ -19,8 +19,9 @@ import type {
   LegalSessionStatus,
 } from '../types';
 import LegalManualIntakeWorkspace from './LegalManualIntakeWorkspace';
+import LegalDocumentsWorkspace from './LegalDocumentsWorkspace';
 
-type LegalView = 'overview' | 'matters' | 'intake' | 'review';
+type LegalView = 'overview' | 'matters' | 'documents' | 'intake' | 'review';
 
 interface LegalAgentOSProps {
   apiConnected: boolean;
@@ -330,8 +331,9 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
         {([
           ['overview', '01 OVERVIEW'],
           ['matters', '02 MATTERS'],
-          ['intake', '03 INTAKE'],
-          ['review', '04 REVIEW + DELIVERY'],
+          ['documents', '03 DOCUMENTS'],
+          ['intake', '04 INTAKE'],
+          ['review', '05 REVIEW + DELIVERY'],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -495,6 +497,22 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             </div>
           </article>
         </>
+      )}
+
+      {view === 'documents' && (
+        <div className="laos-documents-view">
+          <article className="panel document-matter-picker">
+            <div className="panel-h"><span className="t">SELECT MATTER</span><span className="corner">SOURCE ISOLATION REQUIRED</span></div>
+            <label>
+              Matter
+              <select value={selectedMatterId ?? ''} onChange={event => setSelectedMatterId(event.target.value || null)}>
+                <option value="">Choose a matter…</option>
+                {matters.map(matter => <option value={matter.matterId} key={matter.matterId}>{matter.displayName} · {matter.matterId}</option>)}
+              </select>
+            </label>
+          </article>
+          {selectedMatterId ? <LegalDocumentsWorkspace matterId={selectedMatterId} /> : <article className="panel legal-doc-empty">Select a matter to upload, inspect, and approve its source documents.</article>}
+        </div>
       )}
 
       {view === 'overview' && (

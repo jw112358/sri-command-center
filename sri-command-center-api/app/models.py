@@ -612,6 +612,44 @@ class LegalMatterClarificationRequest(BaseModel):
     operatorNote: str = Field(default="", max_length=10_000)
 
 
+class LegalMatterDocument(BaseModel):
+    documentId: str
+    matterId: str
+    version: int
+    name: str
+    mimeType: str
+    sizeBytes: int
+    sha256: str
+    driveFileId: str
+    category: str
+    recordStatus: str
+    confidentiality: str
+    ingestionStatus: Literal[
+        "uploaded", "processing", "ready_for_review", "accepted", "excluded",
+        "superseded", "needs_ocr", "failed",
+    ]
+    extractionMethod: Optional[str] = None
+    extractedCharacterCount: int = 0
+    pageCount: Optional[int] = None
+    warnings: List[str] = Field(default_factory=list)
+    reviewNote: str = ""
+    acceptedAt: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+
+
+class LegalDocumentExtractionPreview(BaseModel):
+    document: LegalMatterDocument
+    textExcerpt: str = ""
+    provenanceNotice: str
+
+
+class LegalDocumentReviewRequest(BaseModel):
+    action: Literal["accept", "exclude", "supersede"]
+    expectedVersion: int = Field(ge=1)
+    note: str = Field(default="", max_length=10_000)
+
+
 class LegalAuthConfig(BaseModel):
     enabled: bool
     provider: Literal["google_workspace"] = "google_workspace"
