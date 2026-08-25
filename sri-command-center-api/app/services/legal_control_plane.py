@@ -12,6 +12,7 @@ from app.models import (
     LegalConnectorStatus,
     LegalDashboardState,
     LegalIntakeReceipt,
+    LegalJobSummary,
     LegalMatterSummary,
     LegalMatterDocument,
     LegalDocumentExtractionPreview,
@@ -295,6 +296,32 @@ class LegalControlPlane:
             raise LegalControlPlaneError("Legal Agent OS control-plane contract is unsafe")
 
         matter_records = state.get("matters", [])
+        matters_by_id = {
+            record["matter_id"]: record
+            for record in matter_records
+            if isinstance(record, dict) and record.get("matter_id")
+        }
+        recent_jobs = []
+        for record in state.get("recent_jobs", []):
+            if not isinstance(record, dict):
+                continue
+            matter = matters_by_id.get(record.get("matter_id"), {})
+            status = record.get("status", "queued")
+            recent_jobs.append(
+                LegalJobSummary(
+                    jobId=record["job_id"],
+                    matterId=record["matter_id"],
+                    kind=record.get("kind", "unknown"),
+                    status=status,
+                    attempts=record.get("attempts", 0),
+                    lastError=record.get("last_error"),
+                    updatedAt=record.get("updated_at", record.get("created_at", "")),
+                    canRetry=(
+                        status in {"blocked", "failed"}
+                        and bool(matter.get("drive_folder_id"))
+                    ),
+                )
+            )
         connectors = [
             LegalConnectorStatus(
                 name="CANONICAL API",
@@ -337,7 +364,28 @@ class LegalControlPlane:
             upcomingDeadlines=self._upcoming_deadlines(matter_records),
             paused=bool(automation.get("pipeline_paused")),
             matters=[self._matter(record) for record in matter_records],
+            recentJobs=recent_jobs,
+            blockedJobs=state.get(
+                "blocked_jobs",
+                sum(job.status in {"blocked", "failed"} for job in recent_jobs),
+            ),
             connectors=connectors,
+        )
+
+    def retry_job(self, job_id: str, operator_note: str) -> LegalJobSummary:
+        record = self._post_json(
+            f"/api/jobs/{job_id}/retry",
+            {"operator_note": operator_note},
+        )
+        return LegalJobSummary(
+            jobId=record["job_id"],
+            matterId=record["matter_id"],
+            kind=record.get("kind", "unknown"),
+            status=record["status"],
+            attempts=record.get("attempts", 0),
+            lastError=record.get("last_error"),
+            updatedAt=record.get("updated_at", record.get("created_at", "")),
+            canRetry=False,
         )
 
     def matters(self) -> list[LegalMatterSummary]:

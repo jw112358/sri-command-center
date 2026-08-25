@@ -441,6 +441,17 @@ export interface LegalReviewPacket {
   decisionNote?: string | null;
 }
 
+export interface LegalJobSummary {
+  jobId: string;
+  matterId: string;
+  kind: string;
+  status: 'queued' | 'leased' | 'complete' | 'failed' | 'blocked';
+  attempts: number;
+  lastError?: string | null;
+  updatedAt: string;
+  canRetry: boolean;
+}
+
 export interface LegalDashboardState {
   activeCount: number;
   capacity: number;
@@ -448,6 +459,8 @@ export interface LegalDashboardState {
   upcomingDeadlines: number;
   paused: boolean;
   matters: LegalMatterSummary[];
+  recentJobs: LegalJobSummary[];
+  blockedJobs: number;
   connectors: LegalConnectorStatus[];
 }
 

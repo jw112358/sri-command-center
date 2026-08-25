@@ -9,6 +9,7 @@ import {
   pauseLegalOS,
   resumeLegalOS,
   resolveLegalMatterClarifications,
+  retryLegalJob,
   signInLegalOperator,
 } from '../api/client';
 import type {
@@ -77,6 +78,8 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [reviewPackets, setReviewPackets] = useState<LegalReviewPacket[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
+  const [retryNote, setRetryNote] = useState('');
+  const [retryBusyId, setRetryBusyId] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   const refreshDashboard = () => {
@@ -209,6 +212,9 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const upcomingDeadlines = dashboard?.upcomingDeadlines ?? 0;
   const matters = dashboard?.matters ?? [];
   const selectedMatter = matters.find(matter => matter.matterId === selectedMatterId) ?? null;
+  const selectedFailedJob = (dashboard?.recentJobs ?? []).find(job => (
+    job.matterId === selectedMatterId && (job.status === 'blocked' || job.status === 'failed')
+  )) ?? null;
   const qualityReviewMatters = matters.filter(matter => matter.status === 'quality_review');
   const awaitingReviewPackets = reviewPackets.filter(packet => packet.status === 'awaiting_review');
   const connectors = dashboard?.connectors ?? [];
@@ -222,6 +228,29 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
       Object.fromEntries((matter.blockingGaps ?? []).map(gap => [gap, ''])),
     );
     setClarificationNote('');
+    setRetryNote('');
+  };
+
+  const handleJobRetry = async () => {
+    if (!operatorSession || !selectedFailedJob || !selectedFailedJob.canRetry) return;
+    if (!retryNote.trim()) {
+      setOperatorMessage('Enter an operator recovery note before retrying the failed step.');
+      return;
+    }
+    setRetryBusyId(selectedFailedJob.jobId);
+    setOperatorMessage('');
+    try {
+      await retryLegalJob(selectedFailedJob.jobId, retryNote.trim());
+      setRetryNote('');
+      await getLegalDashboard().then(state => {
+        if (state) setDashboard(state);
+      });
+      setOperatorMessage(`${selectedFailedJob.matterId} retry queued without creating a duplicate matter.`);
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'The failed step could not be retried.');
+    } finally {
+      setRetryBusyId(null);
+    }
   };
 
   const handleClarificationResolution = async () => {
@@ -370,7 +399,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
             <article className="panel laos-metric">
               <span className="laos-label">SYSTEM READINESS</span>
               <strong>{readyConnectors} <small>/ {connectors.length}</small></strong>
-              <em>AUTOMATION RUNNER NEXT</em>
+              <em>{dashboard?.blockedJobs ? `${dashboard.blockedJobs} BLOCKED JOB${dashboard.blockedJobs === 1 ? '' : 'S'}` : 'NO BLOCKED JOBS'}</em>
             </article>
           </div>
 
@@ -427,6 +456,43 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
                   </div>
                   <p>{selectedMatter.currentSummary || 'No matter summary is available yet.'}</p>
                   <div className="laos-next-action"><span>NEXT ACTION</span>{selectedMatter.exactNextAction || 'Await the next canonical workflow update.'}</div>
+                  {selectedFailedJob && (
+                    <div className="laos-job-recovery" role="alert">
+                      <strong>BACKGROUND STEP REQUIRES OPERATOR REVIEW</strong>
+                      <dl>
+                        <div><dt>STEP</dt><dd>{selectedFailedJob.kind.replace(/_/g, ' ').toUpperCase()}</dd></div>
+                        <div><dt>ATTEMPTS</dt><dd>{selectedFailedJob.attempts}</dd></div>
+                        <div><dt>LAST ERROR</dt><dd>{selectedFailedJob.lastError || 'No diagnostic was supplied.'}</dd></div>
+                      </dl>
+                      {selectedFailedJob.canRetry ? (
+                        <>
+                          <label>
+                            OPERATOR RECOVERY NOTE · REQUIRED
+                            <textarea
+                              rows={3}
+                              value={retryNote}
+                              onChange={event => setRetryNote(event.target.value)}
+                              placeholder="Record why this retry is authorized and what was corrected."
+                            />
+                          </label>
+                          <button
+                            className="btn solid"
+                            disabled={!operatorSession || !retryNote.trim() || retryBusyId === selectedFailedJob.jobId}
+                            onClick={handleJobRetry}
+                            type="button"
+                          >
+                            {retryBusyId === selectedFailedJob.jobId ? 'QUEUING RETRY…' : 'RETRY FAILED STEP'}
+                          </button>
+                        </>
+                      ) : (
+                        <p>
+                          Retry remains disabled because this legacy intake has no verified private Drive workspace.
+                          Re-enter this synthetic matter through the complete intake after the recovery release;
+                          the system will not reconstruct missing confidential source material from operational metadata.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {selectedMatter.intakeCompletenessScore != null && (
                     <div className="laos-completeness">INTAKE COMPLETENESS <strong>{selectedMatter.intakeCompletenessScore}%</strong></div>
                   )}

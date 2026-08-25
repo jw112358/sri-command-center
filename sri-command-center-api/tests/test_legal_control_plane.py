@@ -35,6 +35,7 @@ class LegalControlPlaneTests(unittest.TestCase):
             "exact_next_action": "Complete targeted clarification.",
             "intake_completeness_score": 72,
             "blocking_gaps": ["Requested relief"],
+            "drive_folder_id": "drive-folder-001",
             "future_deadlines": ["2099-01-01"],
             "created_at": "2026-08-13T12:00:00Z",
             "updated_at": "2026-08-13T13:00:00Z",
@@ -100,6 +101,19 @@ class LegalControlPlaneTests(unittest.TestCase):
                     "capacity": 4,
                     "awaiting_review": 0,
                     "matters": [self.matter()],
+                    "blocked_jobs": 1,
+                    "recent_jobs": [
+                        {
+                            "job_id": "job-blocked-001",
+                            "matter_id": "MAT-001",
+                            "kind": "validate_intake",
+                            "status": "blocked",
+                            "attempts": 1,
+                            "last_error": "Synthetic deterministic failure.",
+                            "created_at": "2026-08-13T12:00:00Z",
+                            "updated_at": "2026-08-13T13:00:00Z",
+                        }
+                    ],
                 }
             ),
             self.response(
@@ -133,6 +147,9 @@ class LegalControlPlaneTests(unittest.TestCase):
         self.assertEqual("STAGED", state.connectors[-1].status)
         self.assertEqual("AI DRAFT + QA", state.connectors[-1].name)
         self.assertTrue(state.paused)
+        self.assertEqual(1, state.blockedJobs)
+        self.assertEqual("Synthetic deterministic failure.", state.recentJobs[0].lastError)
+        self.assertTrue(state.recentJobs[0].canRetry)
         for call in get.call_args_list:
             self.assertEqual(
                 "server-secret",
@@ -277,6 +294,37 @@ class LegalControlPlaneTests(unittest.TestCase):
         self.assertEqual(
             "server-secret",
             post.call_args.kwargs["headers"]["X-Operator-Token"],
+        )
+
+    @patch("app.services.legal_control_plane.httpx.post")
+    def test_operator_retry_is_forwarded_with_audit_note(self, post):
+        post.return_value = self.response(
+            {
+                "job_id": "job-blocked-001",
+                "matter_id": "MAT-001",
+                "kind": "validate_intake",
+                "status": "queued",
+                "attempts": 1,
+                "last_error": "Synthetic deterministic failure.",
+                "created_at": "2026-08-13T12:00:00Z",
+                "updated_at": "2026-08-13T13:05:00Z",
+            }
+        )
+
+        job = self.control_plane.retry_job(
+            "job-blocked-001",
+            "Synthetic operator-authorized recovery.",
+        )
+
+        self.assertEqual("queued", job.status)
+        self.assertFalse(job.canRetry)
+        self.assertEqual(
+            "https://legal.example.test/api/jobs/job-blocked-001/retry",
+            post.call_args.args[0],
+        )
+        self.assertEqual(
+            {"operator_note": "Synthetic operator-authorized recovery."},
+            post.call_args.kwargs["json"],
         )
 
     @patch("app.services.legal_control_plane.httpx.post")

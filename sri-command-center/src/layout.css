@@ -465,6 +465,17 @@
 .laos-clarifications textarea { box-sizing: border-box; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-deep); color: var(--white); font: 10px var(--font-ui); resize: vertical; outline: none; }
 .laos-clarifications textarea:focus { border-color: var(--gold-dim); }
 .laos-clarifications .btn { justify-self: start; }
+.laos-job-recovery { display: grid; gap: 11px; margin-top: 14px; padding: 12px; border: 1px solid rgba(255, 88, 88, .4); background: rgba(120, 18, 18, .13); }
+.laos-job-recovery > strong { color: #ff8b8b; font-size: 9.5px; letter-spacing: .8px; }
+.laos-job-recovery dl { display: grid; gap: 7px; margin: 0; }
+.laos-job-recovery dl > div { display: grid; grid-template-columns: 70px 1fr; gap: 8px; }
+.laos-job-recovery dt { color: var(--muted-2); font-size: 7.5px; letter-spacing: .7px; }
+.laos-job-recovery dd { margin: 0; color: var(--white); font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+.laos-job-recovery label { display: grid; gap: 6px; color: var(--muted); font-size: 8.5px; letter-spacing: .5px; }
+.laos-job-recovery textarea { box-sizing: border-box; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-deep); color: var(--white); font: 10px var(--font-ui); resize: vertical; outline: none; }
+.laos-job-recovery textarea:focus { border-color: var(--gold-dim); }
+.laos-job-recovery .btn { justify-self: start; }
+.laos-job-recovery > p { margin: 0; color: var(--muted); font-size: 8.5px; line-height: 1.5; }
 
 .laos-rules { padding: 4px 12px; }
 .laos-rules > div {

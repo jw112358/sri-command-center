@@ -15,6 +15,8 @@ from app.models import (
     LegalDashboardState,
     LegalGoogleCredentialRequest,
     LegalIntakeReceipt,
+    LegalJobRetryRequest,
+    LegalJobSummary,
     LegalMatterSummary,
     LegalMatterDocument,
     LegalDocumentExtractionPreview,
@@ -248,6 +250,18 @@ def resolve_clarifications(matter_id: str, body: LegalMatterClarificationRequest
             body.answers,
             body.operatorNote,
         )
+    except LegalControlPlaneError as exc:
+        raise _canonical_error(exc) from exc
+
+
+@router.post(
+    "/jobs/{job_id}/retry",
+    response_model=LegalJobSummary,
+    dependencies=[Depends(require_operator)],
+)
+def retry_job(job_id: str, body: LegalJobRetryRequest):
+    try:
+        return get_legal_control_plane().retry_job(job_id, body.operatorNote)
     except LegalControlPlaneError as exc:
         raise _canonical_error(exc) from exc
 
