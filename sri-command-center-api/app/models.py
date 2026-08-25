@@ -709,6 +709,21 @@ class LegalReviewDecisionRequest(BaseModel):
     note: str = Field(min_length=1, max_length=10_000)
 
 
+class LegalJobSummary(BaseModel):
+    jobId: str
+    matterId: str
+    kind: str
+    status: Literal["queued", "leased", "complete", "failed", "blocked"]
+    attempts: int
+    lastError: Optional[str] = None
+    updatedAt: str
+    canRetry: bool = False
+
+
+class LegalJobRetryRequest(BaseModel):
+    operatorNote: str = Field(min_length=1, max_length=10_000)
+
+
 class LegalDashboardState(BaseModel):
     activeCount: int
     capacity: int
@@ -716,4 +731,6 @@ class LegalDashboardState(BaseModel):
     upcomingDeadlines: int
     paused: bool
     matters: List[LegalMatterSummary]
+    recentJobs: List[LegalJobSummary] = Field(default_factory=list)
+    blockedJobs: int = 0
     connectors: List[LegalConnectorStatus]

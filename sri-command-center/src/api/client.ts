@@ -11,7 +11,7 @@ import type {
   DashboardCapabilities, SystemEvent, SystemHealth, LegalAssignmentSummary, LegalDashboardState, LegalAuthConfig,
   MarketingDashboard,
   EventEdgeDashboard, EventEdgeManualTrade,
-  LegalIntakeReceipt, LegalMatterSummary, LegalOperatorSession,
+  LegalIntakeReceipt, LegalJobSummary, LegalMatterSummary, LegalOperatorSession,
   LegalReviewPacket, LegalSessionStatus,
   LegalMatterDocument, LegalDocumentExtractionPreview,
 } from '../types';
@@ -406,6 +406,16 @@ export async function resolveLegalMatterClarifications(
   return apiFetch<LegalMatterSummary>(`/api/legal/matters/${encodeURIComponent(matterId)}/clarifications`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function retryLegalJob(
+  jobId: string,
+  operatorNote: string,
+): Promise<LegalJobSummary> {
+  return apiFetch<LegalJobSummary>(`/api/legal/jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: 'POST',
+    body: JSON.stringify({ operatorNote }),
   });
 }
 
