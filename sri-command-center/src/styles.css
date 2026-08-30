@@ -262,6 +262,18 @@ html, body {
 .edge-source-stale, .edge-source-partial { border-color: #f0a030; }
 .edge-source-stale > span, .edge-source-partial > span { color: #f0a030; }
 .edge-safety { padding: 8px 12px; border: 1px solid rgba(240,160,48,.28); background: rgba(240,160,48,.055); color: #f0b35d; font-size: 8.5px; letter-spacing: 1.1px; text-align: center; }
+.edge-safety-live { border-color: rgba(255,89,89,.5); background: rgba(255,89,89,.08); color: var(--err); }
+.edge-automation { padding: 12px; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(260px, 1fr) minmax(260px, .8fr); gap: 14px; align-items: center; }
+.edge-automation-state { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: center; }
+.edge-automation-state strong { color: var(--gold); font: 13px var(--font-display); }
+.edge-automation-state small { grid-column: 1 / -1; color: var(--muted-2); font-size: 8.5px; }
+.edge-automation-state p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.edge-control-state { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.edge-control-state span { padding: 7px 8px; border: 1px solid var(--border-soft); color: var(--muted); font-size: 8px; letter-spacing: .7px; }
+.edge-control-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.edge-control-actions small { grid-column: 1 / -1; color: var(--muted-2); font-size: 8px; line-height: 1.4; }
+.edge-control-actions .danger { border-color: var(--err-tint); color: var(--err); }
+.edge-control-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .edge-warning { padding: 9px 12px; border: 1px solid rgba(255,89,89,.36); color: var(--err); font-size: 10px; }
 .edge-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; }
 .edge-metrics > div { padding: 11px 12px; border: 1px solid var(--border-soft); background: rgba(255,215,0,.025); display: grid; gap: 5px; }
@@ -284,6 +296,9 @@ html, body {
 .edge-signal-price { margin: 10px 0 5px; display: flex; align-items: baseline; gap: 12px; }
 .edge-signal-price strong { color: var(--gold); font: 16px var(--font-display); }
 .edge-signal-price span { color: var(--muted); font-size: 9px; }
+.edge-signal-attribution { display: flex; flex-wrap: wrap; gap: 5px; }
+.edge-signal-attribution span { padding: 3px 6px; border: 1px solid var(--border-soft); color: var(--muted-2); font-size: 7.5px; letter-spacing: .6px; }
+.edge-rejection { color: var(--err) !important; }
 .edge-signal p, .edge-position p { margin: 7px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .edge-signal-foot { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 9px; color: var(--muted-2); font-size: 8.5px; }
 .edge-position strong { display: block; margin-top: 9px; color: var(--gold); font: 16px var(--font-display); }
@@ -305,6 +320,7 @@ html, body {
 .edge-table-wrap th, .edge-table-wrap td { padding: 9px 10px; border-bottom: 1px solid var(--border-soft); color: var(--muted); font-size: 9px; text-align: left; vertical-align: top; }
 .edge-table-wrap th { position: sticky; top: 0; z-index: 1; background: var(--panel); color: var(--gold-dim); font-size: 8px; letter-spacing: .8px; }
 .edge-history { flex: 0 0 auto; }
+.edge-executions { flex: 0 0 auto; }
 
 @media (max-width: 980px) {
   .edge-command-bar { grid-template-columns: 1fr auto; }
@@ -312,6 +328,8 @@ html, body {
   .edge-source { min-width: 0; }
   .edge-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .edge-primary-grid, .edge-secondary-grid { grid-template-columns: 1fr; min-height: auto; }
+  .edge-automation { grid-template-columns: 1fr 1fr; }
+  .edge-control-actions { grid-column: 1 / -1; }
   .edge-signals-panel, .edge-current-panel, .edge-entry, .edge-manual-ledger { min-height: 320px; }
 }
 
@@ -321,6 +339,8 @@ html, body {
   .edge-source { border-left: 0; border-top: 2px solid var(--muted-2); padding: 9px 0 0; }
   .edge-metrics { grid-template-columns: 1fr 1fr; }
   .edge-form-grid { grid-template-columns: 1fr; }
+  .edge-automation { grid-template-columns: 1fr; }
+  .edge-control-actions { grid-column: auto; }
   .edge-form-grid label.wide { grid-column: auto; }
   .edge-entry-actions { align-items: stretch; flex-direction: column; }
   .edge-entry-actions .btn { width: 100%; min-height: 40px; }
