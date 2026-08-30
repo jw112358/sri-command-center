@@ -266,6 +266,43 @@ export interface EventEdgeSignal {
   contrarySignals: string;
   riskDecision: string;
   strategy: string;
+  sourceLane: 'internal_btc' | 'polymarket_copy' | 'unknown';
+  sourceTrader: string;
+  lifecycleStatus: EventEdgeLifecycleStatus;
+  rejectionReason: string;
+}
+
+export type EventEdgeLifecycleStatus = 'candidate' | 'rejected' | 'submitted' | 'partially_filled' | 'filled' | 'settled' | 'blocked';
+
+export interface EventEdgeExecutionRecord {
+  id: string;
+  signalId?: string | null;
+  family: string;
+  venue: string;
+  marketTicker: string;
+  side: string;
+  sourceLane: 'internal_btc' | 'polymarket_copy' | 'unknown';
+  sourceTrader: string;
+  executionMode: 'paper' | 'live';
+  lifecycleStatus: EventEdgeLifecycleStatus;
+  requestedContracts: number;
+  filledContracts: number;
+  averageFillPrice?: number | null;
+  fees?: number | null;
+  realizedPnl?: number | null;
+  rejectionReason: string;
+  updatedAt: string;
+}
+
+export interface EventEdgeAutomationState {
+  mode: 'paper' | 'shadow' | 'live' | 'offline';
+  heartbeatStatus: 'healthy' | 'stale' | 'offline';
+  lastHeartbeatAt?: string | null;
+  paused: boolean;
+  killSwitchEngaged: boolean;
+  controlPlaneConnected: boolean;
+  ordersEnabled: boolean;
+  detail: string;
 }
 
 export interface EventEdgePaperTrade {
@@ -324,6 +361,8 @@ export interface EventEdgeDashboard {
   currentPaperTrades: EventEdgePaperTrade[];
   recentPaperTrades: EventEdgePaperTrade[];
   manualTrades: EventEdgeManualTrade[];
+  executionRecords: EventEdgeExecutionRecord[];
+  automation: EventEdgeAutomationState;
   marketFamilies: string[];
 }
 

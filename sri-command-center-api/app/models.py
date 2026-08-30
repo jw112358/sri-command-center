@@ -314,6 +314,12 @@ class EventEdgeSignal(BaseModel):
     contrarySignals: str = ""
     riskDecision: str = ""
     strategy: str = ""
+    sourceLane: Literal["internal_btc", "polymarket_copy", "unknown"] = "unknown"
+    sourceTrader: str = ""
+    lifecycleStatus: Literal[
+        "candidate", "rejected", "submitted", "partially_filled", "filled", "settled", "blocked"
+    ] = "candidate"
+    rejectionReason: str = ""
 
 
 class EventEdgePaperTrade(BaseModel):
@@ -363,6 +369,39 @@ class EventEdgeMetrics(BaseModel):
     maxDrawdown: float = 0.0
 
 
+class EventEdgeExecutionRecord(BaseModel):
+    id: str
+    signalId: Optional[str] = None
+    family: str = "btc_15m"
+    venue: str = "kalshi"
+    marketTicker: str = ""
+    side: str = ""
+    sourceLane: Literal["internal_btc", "polymarket_copy", "unknown"] = "unknown"
+    sourceTrader: str = ""
+    executionMode: Literal["paper", "live"] = "paper"
+    lifecycleStatus: Literal[
+        "candidate", "rejected", "submitted", "partially_filled", "filled", "settled", "blocked"
+    ] = "candidate"
+    requestedContracts: float = 0.0
+    filledContracts: float = 0.0
+    averageFillPrice: Optional[float] = None
+    fees: Optional[float] = None
+    realizedPnl: Optional[float] = None
+    rejectionReason: str = ""
+    updatedAt: str = ""
+
+
+class EventEdgeAutomationState(BaseModel):
+    mode: Literal["paper", "shadow", "live", "offline"] = "offline"
+    heartbeatStatus: Literal["healthy", "stale", "offline"] = "offline"
+    lastHeartbeatAt: Optional[str] = None
+    paused: bool = True
+    killSwitchEngaged: bool = True
+    controlPlaneConnected: bool = False
+    ordersEnabled: bool = False
+    detail: str = "Execution control plane is unavailable; trading remains blocked."
+
+
 class EventEdgeDashboard(BaseModel):
     generatedAt: str
     sourceStatus: Literal["live", "stale", "offline", "partial"]
@@ -374,6 +413,8 @@ class EventEdgeDashboard(BaseModel):
     currentPaperTrades: List[EventEdgePaperTrade] = Field(default_factory=list)
     recentPaperTrades: List[EventEdgePaperTrade] = Field(default_factory=list)
     manualTrades: List[EventEdgeManualTrade] = Field(default_factory=list)
+    executionRecords: List[EventEdgeExecutionRecord] = Field(default_factory=list)
+    automation: EventEdgeAutomationState = Field(default_factory=EventEdgeAutomationState)
     marketFamilies: List[str] = Field(default_factory=list)
 
 

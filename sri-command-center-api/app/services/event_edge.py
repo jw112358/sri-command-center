@@ -15,7 +15,9 @@ from typing import Any
 
 from app.config import settings
 from app.models import (
+    EventEdgeAutomationState,
     EventEdgeDashboard,
+    EventEdgeExecutionRecord,
     EventEdgeMetrics,
     EventEdgePaperTrade,
     EventEdgeSignal,
@@ -102,6 +104,104 @@ def _signal(item: dict[str, Any]) -> EventEdgeSignal:
         contrarySignals=str(item.get("contrary_signals") or ""),
         riskDecision=str(item.get("risk_decision") or ""),
         strategy=str(item.get("strategy") or ""),
+        sourceLane=_source_lane(item.get("source_lane")),
+        sourceTrader=str(item.get("source_trader") or ""),
+        lifecycleStatus=_lifecycle(item.get("lifecycle_status") or item.get("status")),
+        rejectionReason=str(item.get("rejection_reason") or ""),
+    )
+
+
+def _source_lane(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {"internal_btc", "polymarket_copy"} else "unknown"
+
+
+def _lifecycle(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "active": "candidate",
+        "stale": "rejected",
+        "preflight_approved": "candidate",
+        "preflight_blocked": "blocked",
+        "submitted_live_order": "submitted",
+        "partially_filled_live_order": "partially_filled",
+        "pending_live_settlement": "filled",
+        "settled_paper_win": "settled",
+        "settled_paper_loss": "settled",
+    }
+    normalized = aliases.get(normalized, normalized)
+    allowed = {"candidate", "rejected", "submitted", "partially_filled", "filled", "settled", "blocked"}
+    return normalized if normalized in allowed else "blocked"
+
+
+def _execution_record(item: dict[str, Any]) -> EventEdgeExecutionRecord:
+    average_fill = item.get("average_fill_price")
+    fees = item.get("fees")
+    realized_pnl = item.get("realized_pnl")
+    return EventEdgeExecutionRecord(
+        id=str(item.get("id") or item.get("client_order_id") or "unknown-execution"),
+        signalId=(str(item["signal_id"]) if item.get("signal_id") else None),
+        family=str(item.get("family") or "btc_15m"),
+        venue=str(item.get("venue") or "kalshi"),
+        marketTicker=str(item.get("market_ticker") or item.get("ticker") or ""),
+        side=str(item.get("side") or ""),
+        sourceLane=_source_lane(item.get("source_lane")),
+        sourceTrader=str(item.get("source_trader") or ""),
+        executionMode="live" if str(item.get("execution_mode") or "").lower() == "live" else "paper",
+        lifecycleStatus=_lifecycle(item.get("lifecycle_status") or item.get("status")),
+        requestedContracts=float(item.get("requested_contracts") or item.get("count") or 0),
+        filledContracts=float(item.get("filled_contracts") or 0),
+        averageFillPrice=(float(average_fill) if average_fill is not None else None),
+        fees=(float(fees) if fees is not None else None),
+        realizedPnl=(float(realized_pnl) if realized_pnl is not None else None),
+        rejectionReason=str(item.get("rejection_reason") or ""),
+        updatedAt=str(item.get("updated_at") or ""),
+    )
+
+
+def _automation_state(payload: dict[str, Any]) -> EventEdgeAutomationState:
+    raw = payload.get("automation")
+    if not isinstance(raw, dict):
+        return EventEdgeAutomationState()
+
+    heartbeat_at = _parse_timestamp(str(raw.get("last_heartbeat_at") or ""))
+    age = None if heartbeat_at is None else max(
+        0, int((datetime.now(timezone.utc) - heartbeat_at).total_seconds())
+    )
+    heartbeat_status = "offline" if heartbeat_at is None else (
+        "healthy" if age <= settings.event_edge_dashboard_stale_seconds else "stale"
+    )
+    connected = bool(raw.get("control_plane_connected"))
+    paused = bool(raw.get("paused", True))
+    killed = bool(raw.get("kill_switch_engaged", True))
+    requested_mode = str(raw.get("mode") or "offline").lower()
+    mode = requested_mode if requested_mode in {"paper", "shadow", "live"} else "offline"
+
+    # Fail closed: a payload cannot report executable live mode unless every
+    # independently observable safety condition is healthy.
+    orders_enabled = bool(
+        payload.get("live_trade") is True
+        and raw.get("orders_enabled") is True
+        and mode == "live"
+        and connected
+        and heartbeat_status == "healthy"
+        and not paused
+        and not killed
+    )
+    if mode == "live" and not orders_enabled:
+        mode = "offline"
+    detail = str(raw.get("detail") or "").strip()
+    if not orders_enabled and not detail:
+        detail = "Trading blocked: live execution safety conditions are not all satisfied."
+    return EventEdgeAutomationState(
+        mode=mode,
+        heartbeatStatus=heartbeat_status,
+        lastHeartbeatAt=(heartbeat_at.isoformat() if heartbeat_at else None),
+        paused=paused,
+        killSwitchEngaged=killed,
+        controlPlaneConnected=connected,
+        ordersEnabled=orders_enabled,
+        detail=detail,
     )
 
 
@@ -162,6 +262,12 @@ def get_dashboard(store: DashboardStateStore) -> EventEdgeDashboard:
         key=lambda item: (item.status == "active", item.observedAt), reverse=True
     )
     metrics = payload.get("metrics") or {}
+    raw_execution_records = payload.get("execution_records") or payload.get("live_trades") or []
+    execution_records = [
+        _execution_record(item) for item in raw_execution_records if isinstance(item, dict)
+    ]
+    execution_records.sort(key=lambda item: item.updatedAt, reverse=True)
+    automation = _automation_state(payload)
     families = sorted(
         {
             "btc_15m",
@@ -174,8 +280,8 @@ def get_dashboard(store: DashboardStateStore) -> EventEdgeDashboard:
         generatedAt=generated_at,
         sourceStatus=source_status,
         sourceDetail=source_detail,
-        paperOnly=True,
-        liveExecutionEnabled=False,
+        paperOnly=not automation.ordersEnabled,
+        liveExecutionEnabled=automation.ordersEnabled,
         metrics=EventEdgeMetrics(
             settled=int(metrics.get("total") or 0),
             pending=int(metrics.get("pending") or 0),
@@ -189,5 +295,7 @@ def get_dashboard(store: DashboardStateStore) -> EventEdgeDashboard:
         currentPaperTrades=btc_pending + mlb_pending,
         recentPaperTrades=recent,
         manualTrades=store.list_event_edge_manual_trades(),
+        executionRecords=execution_records,
+        automation=automation,
         marketFamilies=families,
     )

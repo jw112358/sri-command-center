@@ -7,6 +7,12 @@ const familyLabel = (family: string) => ({
   mlb_kalshi_game: 'MLB Kalshi Game',
 }[family] ?? family.replace(/_/g, ' ').toUpperCase());
 
+const sourceLaneLabel = (lane: string) => ({
+  internal_btc: 'INTERNAL BTC',
+  polymarket_copy: 'POLYMARKET COPY',
+  unknown: 'SOURCE UNAVAILABLE',
+}[lane] ?? 'SOURCE UNAVAILABLE');
+
 const localTime = (value: string) => value
   ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   : 'n/a';
@@ -128,6 +134,7 @@ export function EventEdgeOS() {
 
   if (!data) return <section className="event-edge-os"><div className="panel edge-empty">{error || 'LOADING EVENT EDGE OS…'}</div></section>;
   const m = data.metrics;
+  const automation = data.automation;
 
   return (
     <section className="event-edge-os" aria-label="Event Edge operator surface">
@@ -144,7 +151,33 @@ export function EventEdgeOS() {
       </div>
 
       {error && <div className="edge-warning" role="alert">{error} Last known data remains visible.</div>}
-      <div className="edge-safety">PAPER TRADING ONLY · LIVE EXECUTION DISABLED · MANUAL ENTRIES ARE RECORDS, NOT ORDERS</div>
+      <div className={`edge-safety ${data.liveExecutionEnabled ? 'edge-safety-live' : ''}`}>
+        {data.liveExecutionEnabled
+          ? 'OWNER-ONLY LIVE EXECUTION · AUTONOMOUS ORDERS INSIDE APPROVED RISK ENVELOPE'
+          : 'PAPER TRADING ONLY · LIVE EXECUTION DISABLED · MANUAL ENTRIES ARE RECORDS, NOT ORDERS'}
+      </div>
+
+      <div className="panel edge-automation" aria-label="Autonomous agent safety state">
+        <div className="edge-automation-state">
+          <span className={`badge ${automation.heartbeatStatus === 'healthy' ? 'ACTIVE' : automation.heartbeatStatus === 'stale' ? 'IDLE' : 'BLOCKED'}`}>
+            AGENT {automation.heartbeatStatus.toUpperCase()}
+          </span>
+          <strong>{automation.mode.toUpperCase()} MODE</strong>
+          <small>Last heartbeat: {localTime(automation.lastHeartbeatAt ?? '')}</small>
+          <p>{automation.detail}</p>
+        </div>
+        <div className="edge-control-state">
+          <span>CONTROL PLANE {automation.controlPlaneConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+          <span>ORDERS {automation.ordersEnabled ? 'ENABLED' : 'BLOCKED'}</span>
+          <span>PAUSE {automation.paused ? 'ENGAGED' : 'CLEAR'}</span>
+          <span>KILL SWITCH {automation.killSwitchEngaged ? 'ENGAGED' : 'CLEAR'}</span>
+        </div>
+        <div className="edge-control-actions">
+          <button className="btn sm" type="button" disabled title="Control-plane command endpoint is not connected">PAUSE AGENT</button>
+          <button className="btn sm danger" type="button" disabled title="Control-plane command endpoint is not connected">KILL EXECUTION</button>
+          <small>Controls fail closed until the canonical Event Edge command contract is connected and authenticated.</small>
+        </div>
+      </div>
 
       <div className="edge-metrics" aria-label="BTC paper performance summary">
         <div><span>SETTLED</span><strong>{m.settled}</strong></div>
@@ -170,7 +203,13 @@ export function EventEdgeOS() {
                   <span className={`badge ${signal.status === 'active' ? 'ACTIVE' : signal.status === 'blocked' ? 'BLOCKED' : 'IDLE'}`}>{signal.status.toUpperCase()}</span>
                 </div>
                 <div className="edge-signal-price"><strong>{signal.side} @ {signal.entryPrice.toFixed(4)}</strong><span>Max {signal.maxAcceptablePrice?.toFixed(4) ?? 'n/a'}</span></div>
+                <div className="edge-signal-attribution">
+                  <span>{sourceLaneLabel(signal.sourceLane)}</span>
+                  <span>{signal.lifecycleStatus.replace(/_/g, ' ').toUpperCase()}</span>
+                  {signal.sourceTrader && <span>TRADER {signal.sourceTrader}</span>}
+                </div>
                 <p>{signal.primarySignal || signal.supportingSignals || 'Signal context is available in the Event Edge research packet.'}</p>
+                {signal.rejectionReason && <p className="edge-rejection">Rejected: {signal.rejectionReason}</p>}
                 <div className="edge-signal-foot"><span>{localTime(signal.observedAt)}</span><span>{localTime(signal.expiresAt)}</span></div>
                 {signal.status === 'active' && <button className="btn solid sm" onClick={() => selectSignal(signal)}>USE SIGNAL FOR MANUAL ENTRY</button>}
               </article>
@@ -213,6 +252,25 @@ export function EventEdgeOS() {
               {data.manualTrades.map(trade => <tr key={trade.id}><td>{localTime(trade.enteredAt)}</td><td>{familyLabel(trade.family)}</td><td>{trade.marketTicker}</td><td>{trade.side} @ {trade.entryPrice.toFixed(4)}</td><td>{trade.quantity ? `${trade.quantity} units` : `$${trade.cashAmount?.toFixed(2)}`}</td></tr>)}
             </tbody></table>
           </div>
+        </div>
+      </div>
+
+      <div className="panel edge-executions">
+        <div className="panel-h"><span className="t">EXECUTION LIFECYCLE</span><span className="corner">{data.executionRecords.length} RECORDS</span></div>
+        <div className="edge-table-wrap">
+          <table><thead><tr><th>UPDATED</th><th>MODE</th><th>SOURCE</th><th>CONTRACT</th><th>STATUS</th><th>FILL</th><th>FEES</th><th>REALIZED P&amp;L</th></tr></thead><tbody>
+            {data.executionRecords.length === 0 && <tr><td colSpan={8}>No execution records are available. Live trading remains blocked unless a healthy authenticated control plane supplies them.</td></tr>}
+            {data.executionRecords.map(record => <tr key={record.id}>
+              <td>{localTime(record.updatedAt)}</td>
+              <td><span className={`badge ${record.executionMode === 'live' ? 'BLOCKED' : 'IDLE'}`}>{record.executionMode.toUpperCase()}</span></td>
+              <td>{sourceLaneLabel(record.sourceLane)}{record.sourceTrader ? ` · ${record.sourceTrader}` : ''}</td>
+              <td>{record.marketTicker}<br />{record.side}</td>
+              <td>{record.lifecycleStatus.replace(/_/g, ' ').toUpperCase()}{record.rejectionReason ? <><br /><span className="negative">{record.rejectionReason}</span></> : null}</td>
+              <td>{record.filledContracts}/{record.requestedContracts}{record.averageFillPrice != null ? ` @ ${record.averageFillPrice.toFixed(4)}` : ''}</td>
+              <td>{record.fees == null ? 'pending' : `$${record.fees.toFixed(4)}`}</td>
+              <td className={(record.realizedPnl ?? 0) >= 0 ? 'positive' : 'negative'}>{record.realizedPnl == null ? 'pending' : `${record.realizedPnl >= 0 ? '+' : ''}$${record.realizedPnl.toFixed(4)}`}</td>
+            </tr>)}
+          </tbody></table>
         </div>
       </div>
 
