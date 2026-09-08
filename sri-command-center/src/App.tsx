@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Tweaks, SystemEvent } from './types';
 import { CommandCenter } from './components/CommandCenter';
 import { Notebook } from './components/Notebook';
+import { TaskProposalsPanel } from './components/TaskProposalsPanel';
 import { PortfolioStatus } from './components/PortfolioStatus';
 import { MissionControl } from './components/MissionControl';
 import { LegalAgentOS } from './components/LegalAgentOS';
@@ -10,7 +11,6 @@ import { MarketingOS } from './components/MarketingOS';
 import { EventEdgeOS } from './components/EventEdgeOS';
 import { getEvents, getHealth, connectWS } from './api/client';
 
-// ─── Default tweaks ───────────────────────────────────────────────────────────
 const DEFAULT_TWEAKS: Tweaks = {
   layout: 'classic',
   logSpeed: 1,
@@ -19,7 +19,6 @@ const DEFAULT_TWEAKS: Tweaks = {
   glowNodes: true,
 };
 
-// ─── Clock ────────────────────────────────────────────────────────────────────
 function Clock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -40,7 +39,6 @@ function Clock() {
   );
 }
 
-// ─── Notification bell ────────────────────────────────────────────────────────
 interface NotifBellProps {
   events: SystemEvent[];
 }
@@ -78,7 +76,6 @@ function NotifBell({ events }: NotifBellProps) {
   );
 }
 
-// ─── Header ───────────────────────────────────────────────────────────────────
 interface HeaderProps {
   tab: number;
   setTab: (t: number) => void;
@@ -135,7 +132,6 @@ function Header({ tab, setTab, health, events }: HeaderProps) {
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
 function Footer({ status }: { status: string }) {
   return (
     <footer className="app-footer">
@@ -146,7 +142,6 @@ function Footer({ status }: { status: string }) {
   );
 }
 
-// ─── Keyboard shortcuts overlay ───────────────────────────────────────────────
 function Shortcuts({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -168,7 +163,6 @@ function Shortcuts({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab]             = useState(0);
   const [tweaks]                  = useState<Tweaks>(DEFAULT_TWEAKS);
@@ -176,18 +170,13 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pulseSet]                = useState<Set<string>>(new Set());
 
-  // Live data from API
   const [events, setEvents]       = useState<SystemEvent[]>([]);
   const [health, setHealth]       = useState<string>('NOMINAL');
   const [apiConnected, setApiConnected] = useState(false);
 
-  // Footer status
   const [footerStatus, setFooterStatus] = useState('INITIALIZING…');
-
-  // WS cleanup ref
   const wsCleanup = useRef<(() => void) | null>(null);
 
-  // ── Boot: load events + health ─────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
 
@@ -212,7 +201,6 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
-  // ── WebSocket connection ───────────────────────────────────────────────────
   useEffect(() => {
     if (!apiConnected) return;
 
@@ -233,7 +221,6 @@ export default function App() {
     return () => { wsCleanup.current?.(); };
   }, [apiConnected]);
 
-  // ── Poll health every 60s ──────────────────────────────────────────────────
   useEffect(() => {
     const iv = setInterval(async () => {
       try {
@@ -247,7 +234,6 @@ export default function App() {
     return () => clearInterval(iv);
   }, []);
 
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   const onKey = useCallback(
     (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
@@ -298,7 +284,12 @@ export default function App() {
           />
         )}
         {tab === 1 && <PortfolioStatus />}
-        {tab === 2 && <Notebook />}
+        {tab === 2 && (
+          <>
+            <TaskProposalsPanel />
+            <Notebook />
+          </>
+        )}
         {tab === 3 && <MissionControl />}
         {tab === 4 && <LegalAgentOS apiConnected={apiConnected} />}
         {tab === 5 && (
