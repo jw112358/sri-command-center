@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'sri-command-center-api/**'
+      - 'sri-command-center/**'
       - '.github/workflows/api-ci.yml'
   workflow_dispatch:
 
@@ -25,3 +26,18 @@ jobs:
           pip install pytest
       - name: Run task proposal safety tests
         run: python -m pytest -q tests/test_task_proposals.py
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sri-command-center
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install frontend dependencies
+        run: npm install
+      - name: Typecheck and build operator console
+        run: npm run build
