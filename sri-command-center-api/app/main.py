@@ -28,6 +28,7 @@ from app.routers import (
     os,
     projects,
     session_briefs,
+    task_proposals,
     tasks,
 )
 from app.services.legal_auth import authenticate_operator_token
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(legal.router)
     app.include_router(marketing.router)
     app.include_router(tasks.router)
+    app.include_router(task_proposals.router)
     app.include_router(session_briefs.router)
 
     # ── WebSocket ─────────────────────────────────────────────────────────────
@@ -91,9 +93,7 @@ def create_app() -> FastAPI:
             await manager.connect(ws, accepted=True)
             await manager.send_to(ws, {"type": "authenticated"})
             while True:
-                # Keep connection alive; handle incoming operator messages
                 data = await ws.receive_text()
-                # Client can send: { "type": "ping" } or operator interact messages
                 try:
                     msg = json.loads(data)
                     if msg.get("type") == "ping":
@@ -108,7 +108,6 @@ def create_app() -> FastAPI:
         finally:
             await manager.disconnect(ws)
 
-    # ── Startup / shutdown ────────────────────────────────────────────────────
     @app.on_event("startup")
     async def startup():
         log.info("SRI OS Command Center API starting up")
