@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.routers.legal import require_operator
 from app.services import drive
 from app.services.dashboard_state import DashboardStateUnavailable, get_dashboard_store
+from app.services.event_edge import EventEdgeUnavailable, get_dashboard as get_event_edge_dashboard
 from app.services.hud_auth import (
     HudDevicePrincipal,
     create_pairing_code,
@@ -20,6 +21,7 @@ from app.services.hud_auth import (
 from app.services.legal_control_plane import LegalControlPlaneError, get_legal_control_plane
 from app.services.orchestrator_auth import require_orchestrator_worker
 from app.services.session_briefs import list_session_briefs
+from app.services.sri_projects import get_sri_projects
 
 router = APIRouter(prefix="/api/hud", tags=["citadel-hud"])
 
@@ -65,6 +67,76 @@ def _write_state(mutator):
         raise HTTPException(503, str(exc)) from exc
 
 
+def _project_status(project_id: str) -> dict:
+    project = next((item for item in get_sri_projects() if item.id == project_id), None)
+    if not project:
+        return {}
+    return {
+        "status": project.lane.value,
+        "summary": project.notes or "No current registry update.",
+        "updatedAt": project.updatedAt,
+        "completionPct": project.completionPct,
+        "source": "SRI governed project registry",
+    }
+
+
+def _gtd_status(briefs: list[dict]) -> dict:
+    latest = next(
+        (
+            item for item in briefs
+            if "gtd" in f"{item.get('project', '')} {item.get('title', '')}".lower()
+        ),
+        None,
+    )
+    if latest:
+        return {
+            "status": latest.get("status") or "current",
+            "title": latest.get("title") or "GTD v2",
+            "summary": latest.get("summary") or "No current summary.",
+            "nextStart": latest.get("nextStart") or "No next action recorded.",
+            "updatedAt": latest.get("updatedAt"),
+            "completionPct": _project_status("gtd-v2").get("completionPct"),
+            "source": "SRI Drive session summaries",
+        }
+    return {"title": "GTD v2", "nextStart": "No current session brief.", **_project_status("gtd-v2")}
+
+
+def _event_edge_status(store) -> dict:
+    fallback = _project_status("event-edge-os")
+    try:
+        dashboard = get_event_edge_dashboard(store)
+    except EventEdgeUnavailable as exc:
+        return {
+            **fallback,
+            "sourceStatus": "offline",
+            "detail": str(exc),
+            "paperOnly": True,
+            "mode": "offline",
+            "heartbeatStatus": "offline",
+            "activeSignals": 0,
+            "pendingTrades": 0,
+            "settled": 0,
+            "winRate": 0,
+            "normalizedNet": 0,
+            "generatedAt": fallback.get("updatedAt"),
+        }
+    return {
+        **fallback,
+        "sourceStatus": dashboard.sourceStatus,
+        "detail": dashboard.sourceDetail,
+        "paperOnly": dashboard.paperOnly,
+        "mode": dashboard.automation.mode,
+        "heartbeatStatus": dashboard.automation.heartbeatStatus,
+        "activeSignals": sum(1 for item in dashboard.signals if item.status == "active"),
+        "pendingTrades": len(dashboard.currentPaperTrades),
+        "settled": dashboard.metrics.settled,
+        "winRate": dashboard.metrics.winRate,
+        "normalizedNet": dashboard.metrics.normalizedNet,
+        "generatedAt": dashboard.generatedAt,
+        "source": "Event Edge governed Drive dashboard",
+    }
+
+
 @router.post("/pairing-codes", dependencies=[Depends(require_operator)])
 def pairing_code():
     try:
@@ -86,11 +158,13 @@ def pair(body: HudPairRequest):
 @router.get("/summary")
 def summary(_: HudDevicePrincipal = Depends(require_hud_device)):
     state = _read_state()
+    store = get_dashboard_store()
     proposals = [
         item for item in state.get("taskProposals", {}).values()
         if item.get("status") == "proposed"
     ]
-    briefs = [brief.model_dump() for brief in list_session_briefs(limit=5)]
+    all_briefs = [brief.model_dump() for brief in list_session_briefs(limit=50)]
+    briefs = all_briefs[:5]
     coding = [
         item for item in state.get("hudApprovals", {}).values()
         if item.get("status") == "pending" and item.get("expiresAt", "") > _now().isoformat()
@@ -122,6 +196,8 @@ def summary(_: HudDevicePrincipal = Depends(require_hud_device)):
         "legalApprovals": legal_pending,
         "builderProposals": sorted(proposals, key=lambda item: item["updatedAt"], reverse=True)[:5],
         "recentSessions": briefs,
+        "gtd": _gtd_status(all_briefs),
+        "eventEdge": _event_edge_status(store),
     }
 
 
