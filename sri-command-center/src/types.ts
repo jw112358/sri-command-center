@@ -523,6 +523,11 @@ export interface LegalSessionStatus {
   expiresAt: string;
 }
 
+export interface HudPairingCode {
+  code: string;
+  expiresAt: string;
+}
+
 export interface LegalIntakeReceipt {
   eventId: string;
   matter: LegalMatterSummary;

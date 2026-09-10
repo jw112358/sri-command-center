@@ -30,7 +30,7 @@ def _now() -> str:
 
 def _empty_state() -> dict[str, Any]:
     return {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "updatedAt": _now(),
         "notes": {},
         "tasks": {},
@@ -41,6 +41,8 @@ def _empty_state() -> dict[str, Any]:
         "marketingMeasurements": {},
         "marketingLearning": {},
         "eventEdgeManualTrades": {},
+        "taskProposals": {},
+        "hudApprovals": {},
     }
 
 
@@ -515,9 +517,11 @@ class DashboardStateStore:
                 "marketingMeasurements",
                 "marketingLearning",
                 "eventEdgeManualTrades",
+                "taskProposals",
+                "hudApprovals",
             ):
                 state.setdefault(key, {})
-            state.setdefault("schemaVersion", 5)
+            state.setdefault("schemaVersion", 6)
             self._cache = state
             self._cache_at = time.monotonic()
             return json.loads(json.dumps(state))
@@ -532,7 +536,7 @@ class DashboardStateStore:
         if not service or not parent_id:
             raise DashboardStateUnavailable("Google Drive state is unavailable")
 
-        state["schemaVersion"] = 5
+        state["schemaVersion"] = 6
         state["updatedAt"] = _now()
         payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8")
         media = MediaInMemoryUpload(payload, mimetype="application/json", resumable=False)
