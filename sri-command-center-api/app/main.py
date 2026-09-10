@@ -22,6 +22,7 @@ from app.routers import (
     events,
     event_edge,
     graph,
+    hud,
     legal,
     marketing,
     notes,
@@ -47,7 +48,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="SRI OS Command Center API",
         description="Backend for the SRI OS operator dashboard — Drive + GitHub data, WebSocket live streams.",
-        version="2.1.1",
+        version="2.2.0",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
+        allow_origin_regex=settings.citadel_hud_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -69,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(graph.router)
     app.include_router(events.router)
     app.include_router(event_edge.router)
+    app.include_router(hud.router)
     app.include_router(legal.router)
     app.include_router(marketing.router)
     app.include_router(tasks.router)

@@ -13,6 +13,7 @@ import type {
   EventEdgeDashboard, EventEdgeManualTrade,
   LegalIntakeReceipt, LegalJobSummary, LegalMatterSummary, LegalOperatorSession,
   LegalReviewPacket, LegalSessionStatus,
+  HudPairingCode,
   LegalMatterDocument, LegalDocumentExtractionPreview,
 } from '../types';
 import * as mock from '../mock/data';
@@ -388,6 +389,10 @@ export async function getLegalOperatorSession(): Promise<LegalSessionStatus | nu
     clearLegalOperatorSession();
     return null;
   }
+}
+
+export async function createHudPairingCode(): Promise<HudPairingCode> {
+  return apiFetch<HudPairingCode>('/api/hud/pairing-codes', { method: 'POST' });
 }
 
 export async function submitLegalIntake(

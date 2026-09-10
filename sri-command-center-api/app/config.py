@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     legal_session_secret: str = ""
     legal_session_ttl_seconds: int = 1800
     legal_manual_intake_enabled: bool = False
+
+    # Citadel Command HUD. The signing secret must be set in Render and must
+    # not be bundled into the glasses plugin.
+    citadel_hud_signing_secret: str = ""
+    citadel_hud_pairing_ttl_seconds: int = 600
+    citadel_hud_device_ttl_seconds: int = 2592000
+    # Packaged iOS WebViews commonly send Origin: null. Keep this narrowly
+    # scoped; expand only after observing the actual Even Hub origin.
+    citadel_hud_origin_regex: str = r"^null$"
     legal_google_user_token_json: str = ""
     legal_google_allow_adc: bool = False
     legal_gmail_enabled: bool = False

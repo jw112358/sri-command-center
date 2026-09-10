@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   clearLegalOperatorSession,
+  createHudPairingCode,
   decideLegalReviewPacket,
   getLegalAuthConfig,
   getLegalDashboard,
@@ -72,6 +73,7 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
   const [operatorSession, setOperatorSession] = useState<LegalSessionStatus | null>(null);
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [operatorMessage, setOperatorMessage] = useState('');
+  const [hudPairingCode, setHudPairingCode] = useState<string | null>(null);
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
   const [clarificationNote, setClarificationNote] = useState('');
@@ -204,6 +206,20 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
     window.google?.accounts.id.disableAutoSelect();
     setOperatorSession(null);
     setOperatorMessage('Operator session closed.');
+  };
+
+  const handleHudPairing = async () => {
+    setOperatorBusy(true);
+    setOperatorMessage('');
+    try {
+      const pairing = await createHudPairingCode();
+      setHudPairingCode(pairing.code);
+      setOperatorMessage('Enter this one-time code in Citadel Command on the phone.');
+    } catch (error) {
+      setOperatorMessage(error instanceof Error ? error.message : 'HUD pairing code could not be created.');
+    } finally {
+      setOperatorBusy(false);
+    }
   };
 
   const activeCount = dashboard?.activeCount ?? 0;
@@ -347,7 +363,13 @@ export function LegalAgentOS({ apiConnected }: LegalAgentOSProps) {
           </small>
         </span>
         {operatorSession ? (
-          <button className="btn" type="button" onClick={handleSignOut}>SIGN OUT</button>
+          <span>
+            <button className="btn" type="button" onClick={handleHudPairing} disabled={operatorBusy}>
+              PAIR CITADEL HUD
+            </button>{' '}
+            <button className="btn" type="button" onClick={handleSignOut}>SIGN OUT</button>
+            {hudPairingCode && <strong className="laos-hud-pairing-code"> CODE {hudPairingCode}</strong>}
+          </span>
         ) : authConfig?.enabled ? (
           <div className="laos-google-button" ref={googleButtonRef} aria-busy={operatorBusy}></div>
         ) : (
