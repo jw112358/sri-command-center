@@ -1,5 +1,6 @@
 import copy
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -111,6 +112,43 @@ class HudTests(unittest.TestCase):
         )
         self.assertEqual(409, decided.status_code)
         self.assertIn("desktop", decided.json()["detail"].lower())
+
+    def test_summary_exposes_gtd_and_event_edge_read_only_status(self):
+        token, _ = self.pair_device()
+        brief = SimpleNamespace(model_dump=lambda: {
+            "title": "GTD Current Session",
+            "project": "GTD v2",
+            "status": "complete",
+            "summary": "Calibration cycle complete.",
+            "nextStart": "Run prospective observation.",
+            "updatedAt": "2026-09-10T12:00:00Z",
+        })
+        dashboard = SimpleNamespace(
+            sourceStatus="live",
+            sourceDetail="Drive supervisor refreshed 5 seconds ago.",
+            paperOnly=True,
+            generatedAt="2026-09-10T12:01:00Z",
+            automation=SimpleNamespace(mode="paper", heartbeatStatus="healthy"),
+            signals=[SimpleNamespace(status="active"), SimpleNamespace(status="blocked")],
+            currentPaperTrades=[SimpleNamespace(id="paper-1")],
+            metrics=SimpleNamespace(settled=143, winRate=0.56, normalizedNet=4.25),
+        )
+        with (
+            patch("app.routers.hud.list_session_briefs", return_value=[brief]),
+            patch("app.routers.hud.get_event_edge_dashboard", return_value=dashboard),
+        ):
+            response = self.client.get(
+                "/api/hud/summary",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        self.assertEqual(200, response.status_code)
+        data = response.json()
+        self.assertEqual("GTD Current Session", data["gtd"]["title"])
+        self.assertEqual("Run prospective observation.", data["gtd"]["nextStart"])
+        self.assertEqual("live", data["eventEdge"]["sourceStatus"])
+        self.assertEqual(1, data["eventEdge"]["activeSignals"])
+        self.assertEqual(143, data["eventEdge"]["settled"])
+        self.assertTrue(data["eventEdge"]["paperOnly"])
 
 
 if __name__ == "__main__":
