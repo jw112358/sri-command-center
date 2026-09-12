@@ -19,6 +19,8 @@ services:
         value: "4"
       - key: CITADEL_HUD_SIGNING_SECRET
         generateValue: true # signs 30-day G2 device sessions; never exposed to the plugin
+      - key: CITADEL_HUD_PUBLISH_TOKEN
+        sync: false # dedicated least-privilege secret shared only with GTD v2
       - key: CITADEL_HUD_ORIGIN_REGEX
         value: "^null$" # packaged Even Hub WebView origin
       - key: MARKETING_WORKER_ENABLED
