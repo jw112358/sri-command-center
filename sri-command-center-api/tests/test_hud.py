@@ -32,9 +32,11 @@ class HudTests(unittest.TestCase):
         self.original_hud_secret = settings.citadel_hud_signing_secret
         self.original_operator_token = settings.legal_api_token
         self.original_runner_token = settings.orchestrator_runner_token
+        self.original_hud_publish_token = settings.citadel_hud_publish_token
         settings.citadel_hud_signing_secret = "h" * 48
         settings.legal_api_token = "operator-test-token"
         settings.orchestrator_runner_token = "worker-test-token"
+        settings.citadel_hud_publish_token = "hud-publisher-test-token"
         self.store = FakeStore()
         self.store_patch = patch(
             "app.routers.hud.get_dashboard_store",
@@ -48,6 +50,7 @@ class HudTests(unittest.TestCase):
         settings.citadel_hud_signing_secret = self.original_hud_secret
         settings.legal_api_token = self.original_operator_token
         settings.orchestrator_runner_token = self.original_runner_token
+        settings.citadel_hud_publish_token = self.original_hud_publish_token
 
     def pair_device(self):
         response = self.client.post(
@@ -149,6 +152,78 @@ class HudTests(unittest.TestCase):
         self.assertEqual(1, data["eventEdge"]["activeSignals"])
         self.assertEqual(143, data["eventEdge"]["settled"])
         self.assertTrue(data["eventEdge"]["paperOnly"])
+
+    def test_owner_brief_publish_surfaces_exact_top_five_in_gtd(self):
+        token, _ = self.pair_device()
+        picks = [
+            {
+                "rank": rank,
+                "player": f"Player {rank}",
+                "team": "KC",
+                "opponent": "LV",
+                "category": "qb_passing_yards",
+                "line": 275.5,
+                "direction": "OVER",
+                "projection": 291.2,
+                "modelProbability": 0.64,
+            }
+            for rank in range(1, 6)
+        ]
+        payload = {
+            "schemaVersion": "gtd-nfl-hud-v1",
+            "boardId": "board-20260913",
+            "gameDate": "2026-09-13",
+            "briefingDate": "2026-09-12",
+            "publishedAt": "2026-09-12T14:35:00Z",
+            "categories": [{
+                "key": "qb_passing_yards",
+                "label": "QB passing yards",
+                "picks": picks,
+            }],
+            "calibrationStatus": "unvalidated_owner_shadow",
+            "visibility": "owner_only",
+        }
+        response = self.client.post(
+            "/api/hud/gtd/nfl-owner-brief",
+            headers={"Authorization": "Bearer hud-publisher-test-token"},
+            json=payload,
+        )
+        self.assertEqual(200, response.status_code)
+        summary = self.client.get(
+            "/api/hud/summary",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(200, summary.status_code)
+        snapshot = summary.json()["gtd"]["nflOwnerBrief"]
+        self.assertEqual("board-20260913", snapshot["boardId"])
+        self.assertEqual(5, len(snapshot["categories"][0]["picks"]))
+
+    def test_owner_brief_publish_rejects_non_top_five_category(self):
+        payload = {
+            "schemaVersion": "gtd-nfl-hud-v1",
+            "boardId": "board-20260913",
+            "gameDate": "2026-09-13",
+            "briefingDate": "2026-09-12",
+            "publishedAt": "2026-09-12T14:35:00Z",
+            "categories": [{
+                "key": "qb_passing_yards",
+                "label": "QB passing yards",
+                "picks": [{
+                    "rank": 1,
+                    "player": "Player 1",
+                    "team": "KC",
+                    "opponent": "LV",
+                    "category": "qb_passing_yards",
+                }],
+            }],
+            "calibrationStatus": "unvalidated_owner_shadow",
+        }
+        response = self.client.post(
+            "/api/hud/gtd/nfl-owner-brief",
+            headers={"Authorization": "Bearer hud-publisher-test-token"},
+            json=payload,
+        )
+        self.assertEqual(422, response.status_code)
 
 
 if __name__ == "__main__":
