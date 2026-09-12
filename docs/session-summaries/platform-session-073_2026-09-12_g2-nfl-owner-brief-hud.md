@@ -42,14 +42,14 @@ The SRI Command Center accepts the post-email NFL snapshot at `POST /api/hud/gtd
 1. Allow Google Drive to finish syncing `SRI Agent Platform/Citadel Command G2 Plugin`.
 2. Open the project root containing `package.json` and `app.json`; do not open `src` as the project root.
 3. Run `npm install` and `npm run build`.
-4. Start the plugin: `npm run dev -- --port 5174`.
-5. In a second terminal, run `evenhub-simulator http://localhost:5174 --automation-port 9899` (or adjust the saved `simulate` script to port 5174 before using it).
+4. Start the plugin: `npm run dev -- --port 5173`.
+5. In a second terminal, run `npm run simulate` (the saved script targets `http://localhost:5173`).
 6. Verify the menu shows **GTD NFL Picks**.
 7. Open the GTD screen and confirm every briefing category displays exactly ranks 1–5, including player, direction, line and model probability.
 8. Verify R1 swipe down/up moves forward/backward through categories and wraps correctly.
 9. Verify press opens the selected section, double-press returns, and long-press refreshes without approving anything outside Coding Approvals.
 10. Check physical line wrapping and readability on G2; report any clipped category or player names.
-11. Generate the hardware QR: `evenhub qr --url "http://MAC_LAN_IP:5174"`, scan it in Even Realities Developer Center, and repeat the R1 tests on the glasses.
+11. Generate the hardware QR: `evenhub qr --url "http://MAC_LAN_IP:5173"`, scan it in Even Realities Developer Center, and repeat the R1 tests on the glasses.
 12. After the next Owners Brief email, long-press refresh and confirm the HUD board ID/date/category content advances to the emailed board.
 13. Test offline behavior by briefly removing phone network access; confirm the last cached snapshot remains readable.
 14. Package only after hardware acceptance: `npm run pack`. Expected file: `citadel-command-hud-v0.4.0.ehpk`.

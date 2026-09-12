@@ -25,15 +25,45 @@ type PersistentStorage = { getLocalStorage:(key:string)=>Promise<string>; setLoc
 let persistentStorage:PersistentStorage|null=null
 let deviceSession:DeviceSession|null=null
 let cachedSummary:HudSummary|null=null
+const privateStateListeners=new Set<()=>void>()
 
 const parseSession=(raw:string|null):DeviceSession|null=>{ if(!raw)return null; try { const value=JSON.parse(raw) as DeviceSession; return value.accessToken&&new Date(value.expiresAt).getTime()>Date.now()?value:null } catch{return null} }
 const parseSummary=(raw:string|null):HudSummary|null=>{ if(!raw)return null; try{return JSON.parse(raw) as HudSummary}catch{return null} }
-export const initializePersistentStorage=async(storage:PersistentStorage)=>{ persistentStorage=storage; const [session,summary]=await Promise.all([storage.getLocalStorage(DEVICE_SESSION_KEY),storage.getLocalStorage(SUMMARY_CACHE_KEY)]); deviceSession=parseSession(session)??parseSession(localStorage.getItem(DEVICE_SESSION_KEY)); cachedSummary=parseSummary(summary)??parseSummary(localStorage.getItem(SUMMARY_CACHE_KEY)) }
-const getSession=()=>{ if(deviceSession&&new Date(deviceSession.expiresAt).getTime()>Date.now())return deviceSession; deviceSession=parseSession(localStorage.getItem(DEVICE_SESSION_KEY)); return deviceSession }
-const request=async<T>(path:string,init?:RequestInit):Promise<T>=>{ const headers=new Headers(init?.headers); headers.set('Content-Type','application/json'); const token=getSession()?.accessToken; if(token)headers.set('Authorization',`Bearer ${token}`); const response=await fetch(`${API_BASE}${path}`,{...init,headers}); if(response.status===401)localStorage.removeItem(DEVICE_SESSION_KEY); if(!response.ok){let detail=`Request failed (${response.status})`;try{const body=await response.json() as {detail?:string};if(body.detail)detail=body.detail}catch{}throw new Error(detail)}return response.json() as Promise<T> }
+const clearPrivateState=async()=>{
+  const shouldNotify=deviceSession!==null||cachedSummary!==null||localStorage.getItem(DEVICE_SESSION_KEY)!==null||localStorage.getItem(SUMMARY_CACHE_KEY)!==null
+  deviceSession=null
+  cachedSummary=null
+  localStorage.removeItem(DEVICE_SESSION_KEY)
+  localStorage.removeItem(SUMMARY_CACHE_KEY)
+  if(shouldNotify)for(const listener of privateStateListeners)listener()
+  if(persistentStorage){
+    await Promise.allSettled([
+      persistentStorage.setLocalStorage(DEVICE_SESSION_KEY,''),
+      persistentStorage.setLocalStorage(SUMMARY_CACHE_KEY,''),
+    ])
+  }
+}
+export const onPrivateStateCleared=(listener:()=>void)=>{privateStateListeners.add(listener);return()=>privateStateListeners.delete(listener)}
+export const initializePersistentStorage=async(storage:PersistentStorage)=>{
+  persistentStorage=storage
+  const [session,summary]=await Promise.all([
+    storage.getLocalStorage(DEVICE_SESSION_KEY),
+    storage.getLocalStorage(SUMMARY_CACHE_KEY),
+  ])
+  deviceSession=parseSession(session)??parseSession(localStorage.getItem(DEVICE_SESSION_KEY))
+  cachedSummary=parseSummary(summary)??parseSummary(localStorage.getItem(SUMMARY_CACHE_KEY))
+  if(!deviceSession){await clearPrivateState();return}
+}
+const getSession=()=>{
+  if(deviceSession&&new Date(deviceSession.expiresAt).getTime()>Date.now())return deviceSession
+  deviceSession=parseSession(localStorage.getItem(DEVICE_SESSION_KEY))
+  if(!deviceSession&&(cachedSummary!==null||localStorage.getItem(DEVICE_SESSION_KEY)!==null||localStorage.getItem(SUMMARY_CACHE_KEY)!==null))void clearPrivateState()
+  return deviceSession
+}
+const request=async<T>(path:string,init?:RequestInit):Promise<T>=>{ const headers=new Headers(init?.headers); headers.set('Content-Type','application/json'); const token=getSession()?.accessToken; if(token)headers.set('Authorization',`Bearer ${token}`); const response=await fetch(`${API_BASE}${path}`,{...init,headers}); if(response.status===401)await clearPrivateState(); if(!response.ok){let detail=`Request failed (${response.status})`;try{const body=await response.json() as {detail?:string};if(body.detail)detail=body.detail}catch{}throw new Error(detail)}return response.json() as Promise<T> }
 export const isPaired=()=>getSession()!==null
 export const pairDevice=async(code:string)=>{const session=await request<DeviceSession>('/api/hud/pair',{method:'POST',body:JSON.stringify({code})});deviceSession=session;localStorage.setItem(DEVICE_SESSION_KEY,JSON.stringify(session));if(persistentStorage)await persistentStorage.setLocalStorage(DEVICE_SESSION_KEY,JSON.stringify(session));return session}
 export const loadSummary=async()=>{const value=await request<HudSummary>('/api/hud/summary');cachedSummary=value;localStorage.setItem(SUMMARY_CACHE_KEY,JSON.stringify(value));if(persistentStorage)await persistentStorage.setLocalStorage(SUMMARY_CACHE_KEY,JSON.stringify(value));return value}
-export const loadCachedSummary=()=>cachedSummary??parseSummary(localStorage.getItem(SUMMARY_CACHE_KEY))
+export const loadCachedSummary=()=>getSession()?(cachedSummary??parseSummary(localStorage.getItem(SUMMARY_CACHE_KEY))):null
 export const decideCodingApproval=(id:string,decision:'approve'|'deny')=>request<CodingApproval>(`/api/hud/approvals/${encodeURIComponent(id)}/decision`,{method:'POST',body:JSON.stringify({decision})})
-export const clearPairing=async()=>{deviceSession=null;localStorage.removeItem(DEVICE_SESSION_KEY);if(persistentStorage)await persistentStorage.setLocalStorage(DEVICE_SESSION_KEY,'')}
+export const clearPairing=clearPrivateState

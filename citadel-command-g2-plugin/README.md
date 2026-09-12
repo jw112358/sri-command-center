@@ -24,7 +24,7 @@ Private Even G2 command interface for SRI Command Center. Version 0.4.0 adds the
 ```sh
 npm install
 npm run build
-npm run dev -- --port 5174
+npm run dev -- --port 5173
 ```
 
 In another terminal:
@@ -36,7 +36,7 @@ npm run simulate
 For hardware testing, use the Mac's current LAN address:
 
 ```sh
-evenhub qr --url "http://MAC_LAN_IP:5174"
+evenhub qr --url "http://MAC_LAN_IP:5173"
 ```
 
 Scan the QR code from Developer Center in the Even Realities app. Pair Citadel Command if necessary, open **GTD NFL Picks**, and confirm every category contains ranks 1–5 from the latest emailed Owners Brief.
