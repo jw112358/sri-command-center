@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     # Citadel Command HUD. The signing secret must be set in Render and must
     # not be bundled into the glasses plugin.
     citadel_hud_signing_secret: str = ""
+    citadel_hud_publish_token: str = ""
     citadel_hud_pairing_ttl_seconds: int = 600
     citadel_hud_device_ttl_seconds: int = 2592000
     # Packaged iOS WebViews commonly send Origin: null. Keep this narrowly
