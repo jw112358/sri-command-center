@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import uuid
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.routers.legal import require_operator
@@ -22,6 +23,7 @@ from app.services.legal_control_plane import LegalControlPlaneError, get_legal_c
 from app.services.orchestrator_auth import require_orchestrator_worker
 from app.services.session_briefs import list_session_briefs
 from app.services.sri_projects import get_sri_projects
+from app.config import settings
 
 router = APIRouter(prefix="/api/hud", tags=["citadel-hud"])
 
@@ -46,6 +48,43 @@ class HudApprovalRequest(BaseModel):
 
 class HudDecisionRequest(BaseModel):
     decision: Literal["approve", "deny"]
+
+
+class NflHudPick(BaseModel):
+    rank: int = Field(ge=1, le=5)
+    player: str = Field(min_length=1, max_length=100)
+    team: str = Field(min_length=1, max_length=10)
+    opponent: str = Field(min_length=1, max_length=10)
+    category: str = Field(min_length=1, max_length=80)
+    line: float | None = None
+    direction: Literal["OVER", "UNDER", "NEUTRAL"] | None = None
+    projection: float | None = None
+    modelProbability: float | None = Field(default=None, ge=0, le=1)
+
+
+class NflHudCategory(BaseModel):
+    key: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    label: str = Field(min_length=1, max_length=100)
+    picks: list[NflHudPick] = Field(max_length=5)
+
+
+class NflOwnerBriefSnapshot(BaseModel):
+    schemaVersion: Literal["gtd-nfl-hud-v1"]
+    boardId: str = Field(min_length=8, max_length=100)
+    gameDate: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    briefingDate: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    publishedAt: datetime
+    categories: list[NflHudCategory] = Field(min_length=1, max_length=20)
+    calibrationStatus: str = Field(max_length=100)
+    visibility: Literal["owner_only"] = "owner_only"
+
+
+def require_hud_publisher(authorization: str | None = Header(default=None)) -> str:
+    expected = settings.citadel_hud_publish_token
+    supplied = authorization.removeprefix("Bearer ").strip() if authorization else ""
+    if not expected or not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(401, "Invalid HUD publisher credential")
+    return "gtd-v2"
 
 
 def _read_state(*, fresh: bool = False) -> dict:
@@ -184,6 +223,10 @@ def summary(_: HudDevicePrincipal = Depends(require_hud_device)):
     except LegalControlPlaneError:
         pass
     health = drive.get_health()
+    gtd = _gtd_status(all_briefs)
+    nfl_snapshot = state.get("gtdNflOwnerBrief")
+    if nfl_snapshot:
+        gtd["nflOwnerBrief"] = nfl_snapshot
     return {
         "updatedAt": _now().isoformat(),
         "system": health,
@@ -196,9 +239,44 @@ def summary(_: HudDevicePrincipal = Depends(require_hud_device)):
         "legalApprovals": legal_pending,
         "builderProposals": sorted(proposals, key=lambda item: item["updatedAt"], reverse=True)[:5],
         "recentSessions": briefs,
-        "gtd": _gtd_status(all_briefs),
+        "gtd": gtd,
         "eventEdge": _event_edge_status(store),
     }
+
+
+@router.post("/gtd/nfl-owner-brief")
+def publish_nfl_owner_brief(
+    body: NflOwnerBriefSnapshot,
+    _: str = Depends(require_hud_publisher),
+):
+    """Persist the exact NFL cohort released by the owner briefing email."""
+    payload = body.model_dump(mode="json")
+    if any(len(category["picks"]) != 5 for category in payload["categories"]):
+        raise HTTPException(422, "Every NFL category must contain exactly five picks")
+    if any(
+        pick["category"] != category["key"]
+        for category in payload["categories"]
+        for pick in category["picks"]
+    ):
+        raise HTTPException(422, "Pick category must match its category group")
+    if any(
+        [pick["rank"] for pick in category["picks"]] != [1, 2, 3, 4, 5]
+        for category in payload["categories"]
+    ):
+        raise HTTPException(422, "NFL category ranks must be 1 through 5")
+
+    def publish(state):
+        existing = state.get("gtdNflOwnerBrief")
+        if existing and existing.get("boardId") == payload["boardId"]:
+            return existing
+        if existing and (
+            existing.get("briefingDate", ""), existing.get("gameDate", "")
+        ) > (payload["briefingDate"], payload["gameDate"]):
+            raise HTTPException(409, "A newer NFL owner briefing is already published")
+        state["gtdNflOwnerBrief"] = payload
+        return payload
+
+    return _write_state(publish)
 
 
 @router.post("/approvals", status_code=201)
