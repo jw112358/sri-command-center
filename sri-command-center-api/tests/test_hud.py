@@ -152,6 +152,8 @@ class HudTests(unittest.TestCase):
         self.assertEqual(1, data["eventEdge"]["activeSignals"])
         self.assertEqual(143, data["eventEdge"]["settled"])
         self.assertTrue(data["eventEdge"]["paperOnly"])
+        self.assertEqual("0/4", data["eventEdge"]["voteTally"])
+        self.assertTrue(all(len(card) <= 64 for card in data["eventEdge"]["cards"]))
 
     def test_owner_brief_publish_surfaces_exact_top_five_in_gtd(self):
         token, _ = self.pair_device()

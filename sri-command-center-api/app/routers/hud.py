@@ -157,8 +157,34 @@ def _event_edge_status(store) -> dict:
             "settled": 0,
             "winRate": 0,
             "normalizedNet": 0,
+            "canaryStage": 0,
+            "voteTally": "0/4",
+            "consensusDecision": "ABSTAIN",
+            "alertBridgeStatus": "offline",
+            "eligibleWhales": 0,
+            "cards": ["EE OFFLINE · ORDERS BLOCKED"],
             "generatedAt": fallback.get("updatedAt"),
         }
+    consensus = getattr(dashboard, "consensus", None)
+    lanes = getattr(consensus, "lanes", [])
+    decision = getattr(consensus, "decision", "ABSTAIN")
+    size_fraction = getattr(consensus, "sizeFraction", 0)
+    canary_stage = getattr(consensus, "canaryStage", 0)
+    alert_status = getattr(consensus, "alertBridgeStatus", "offline")
+    alert_acknowledged = getattr(consensus, "alertAcknowledged", False)
+    directional = [lane for lane in lanes if lane.side != "ABSTAIN"]
+    agreeing = [lane for lane in directional if lane.side == decision]
+    size = "FULL" if size_fraction == 1 else (
+        "HALF" if size_fraction == .5 else "NONE"
+    )
+    decision_card = (
+        f"EE {decision} {len(agreeing)}/4 {size} · C{canary_stage}"
+    )[:64]
+    risk_card = (
+        f"EE ALERT {alert_status.upper()} "
+        f"· {'ACK' if alert_acknowledged else 'NO ACK'} "
+        f"· {'PAPER' if dashboard.paperOnly else 'LIVE'}"
+    )[:64]
     return {
         **fallback,
         "sourceStatus": dashboard.sourceStatus,
@@ -171,6 +197,15 @@ def _event_edge_status(store) -> dict:
         "settled": dashboard.metrics.settled,
         "winRate": dashboard.metrics.winRate,
         "normalizedNet": dashboard.metrics.normalizedNet,
+        "canaryStage": canary_stage,
+        "voteTally": f"{len(agreeing)}/4",
+        "consensusDecision": decision,
+        "consensusSize": size.lower(),
+        "alertBridgeStatus": alert_status,
+        "eligibleWhales": sum(
+            1 for item in getattr(dashboard, "whaleCandidates", []) if item.eligibleForScoring
+        ),
+        "cards": [decision_card, risk_card],
         "generatedAt": dashboard.generatedAt,
         "source": "Event Edge governed Drive dashboard",
     }

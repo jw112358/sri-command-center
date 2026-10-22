@@ -305,6 +305,39 @@ export interface EventEdgeAutomationState {
   detail: string;
 }
 
+export interface EventEdgeConsensusLane {
+  lane: 'internal_model' | 'arbitrage' | 'convergence' | 'whale_copy';
+  side: 'YES' | 'NO' | 'ABSTAIN';
+  confidence: number;
+  rationale: string;
+  observedAt: string;
+}
+
+export interface EventEdgeConsensusState {
+  enabled: boolean;
+  shadowMode: boolean;
+  canaryStage: number;
+  decision: 'YES' | 'NO' | 'ABSTAIN';
+  sizeFraction: number;
+  alertBridgeStatus: 'healthy' | 'stale' | 'offline';
+  alertAcknowledged: boolean;
+  lanes: EventEdgeConsensusLane[];
+  blockers: string[];
+}
+
+export interface EventEdgeWhaleCandidate {
+  traderRef: string;
+  venue: string;
+  asset: 'BTC' | 'SOL' | 'XRP';
+  settledTrades: number;
+  winRate?: number | null;
+  averageEntryPrice?: number | null;
+  returnRate?: number | null;
+  profit: number;
+  eligibleForScoring: boolean;
+  blockers: string[];
+}
+
 export interface EventEdgePaperTrade {
   id: string;
   family: string;
@@ -363,6 +396,8 @@ export interface EventEdgeDashboard {
   manualTrades: EventEdgeManualTrade[];
   executionRecords: EventEdgeExecutionRecord[];
   automation: EventEdgeAutomationState;
+  consensus: EventEdgeConsensusState;
+  whaleCandidates: EventEdgeWhaleCandidate[];
   marketFamilies: string[];
 }
 

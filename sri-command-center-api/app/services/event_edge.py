@@ -17,10 +17,13 @@ from app.config import settings
 from app.models import (
     EventEdgeAutomationState,
     EventEdgeDashboard,
+    EventEdgeConsensusLane,
+    EventEdgeConsensusState,
     EventEdgeExecutionRecord,
     EventEdgeMetrics,
     EventEdgePaperTrade,
     EventEdgeSignal,
+    EventEdgeWhaleCandidate,
 )
 from app.services import drive
 from app.services.dashboard_state import DashboardStateStore
@@ -205,6 +208,56 @@ def _automation_state(payload: dict[str, Any]) -> EventEdgeAutomationState:
     )
 
 
+def _consensus_state(payload: dict[str, Any]) -> EventEdgeConsensusState:
+    raw = payload.get("consensus")
+    if not isinstance(raw, dict):
+        return EventEdgeConsensusState(blockers=["consensus_state_unavailable"])
+    allowed_lanes = {"internal_model", "arbitrage", "convergence", "whale_copy"}
+    lanes = []
+    for item in raw.get("lanes") or []:
+        if not isinstance(item, dict) or str(item.get("lane") or "").lower() not in allowed_lanes:
+            continue
+        side = str(item.get("side") or "ABSTAIN").upper()
+        lanes.append(EventEdgeConsensusLane(
+            lane=str(item["lane"]).lower(),
+            side=side if side in {"YES", "NO"} else "ABSTAIN",
+            confidence=max(0.0, min(1.0, float(item.get("confidence") or 0))),
+            rationale=str(item.get("rationale") or ""),
+            observedAt=str(item.get("observed_at") or ""),
+        ))
+    decision = str(raw.get("decision") or "ABSTAIN").upper()
+    return EventEdgeConsensusState(
+        enabled=bool(raw.get("enabled")), shadowMode=bool(raw.get("shadow_mode", True)),
+        canaryStage=max(0, int(raw.get("canary_stage") or 0)),
+        decision=decision if decision in {"YES", "NO"} else "ABSTAIN",
+        sizeFraction=max(0.0, min(1.0, float(raw.get("size_fraction") or 0))),
+        alertBridgeStatus=str(raw.get("alert_bridge_status") or "offline")
+        if str(raw.get("alert_bridge_status") or "offline") in {"healthy", "stale", "offline"} else "offline",
+        alertAcknowledged=bool(raw.get("alert_acknowledged")), lanes=lanes,
+        blockers=[str(value) for value in (raw.get("blockers") or [])],
+    )
+
+
+def _whale_candidates(payload: dict[str, Any]) -> list[EventEdgeWhaleCandidate]:
+    candidates = []
+    for item in payload.get("whale_candidates") or []:
+        if not isinstance(item, dict) or str(item.get("asset") or "").upper() not in {"BTC", "SOL", "XRP"}:
+            continue
+        average = item.get("average_entry_price")
+        # A win rate without the price paid is misleading and is suppressed.
+        win_rate = item.get("win_rate") if average is not None else None
+        candidates.append(EventEdgeWhaleCandidate(
+            traderRef=str(item.get("trader_ref") or ""), venue=str(item.get("venue") or "kalshi"),
+            asset=str(item["asset"]).upper(), settledTrades=int(item.get("settled_trades") or 0),
+            winRate=(float(win_rate) if win_rate is not None else None),
+            averageEntryPrice=(float(average) if average is not None else None),
+            returnRate=(float(item["return_rate"]) if item.get("return_rate") is not None else None),
+            profit=float(item.get("profit") or 0), eligibleForScoring=bool(item.get("eligible_for_scoring")),
+            blockers=[str(value) for value in (item.get("blockers") or [])],
+        ))
+    return candidates
+
+
 def _trade(item: dict[str, Any], family: str) -> EventEdgePaperTrade:
     cash_pnl = item.get("cash_pnl")
     return EventEdgePaperTrade(
@@ -297,5 +350,7 @@ def get_dashboard(store: DashboardStateStore) -> EventEdgeDashboard:
         manualTrades=store.list_event_edge_manual_trades(),
         executionRecords=execution_records,
         automation=automation,
+        consensus=_consensus_state(payload),
+        whaleCandidates=_whale_candidates(payload),
         marketFamilies=families,
     )
