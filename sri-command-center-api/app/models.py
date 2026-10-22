@@ -402,6 +402,39 @@ class EventEdgeAutomationState(BaseModel):
     detail: str = "Execution control plane is unavailable; trading remains blocked."
 
 
+class EventEdgeConsensusLane(BaseModel):
+    lane: Literal["internal_model", "arbitrage", "convergence", "whale_copy"]
+    side: Literal["YES", "NO", "ABSTAIN"] = "ABSTAIN"
+    confidence: float = 0.0
+    rationale: str = ""
+    observedAt: str = ""
+
+
+class EventEdgeWhaleCandidate(BaseModel):
+    traderRef: str
+    venue: str = "kalshi"
+    asset: Literal["BTC", "SOL", "XRP"]
+    settledTrades: int = 0
+    winRate: Optional[float] = None
+    averageEntryPrice: Optional[float] = None
+    returnRate: Optional[float] = None
+    profit: float = 0.0
+    eligibleForScoring: bool = False
+    blockers: List[str] = Field(default_factory=list)
+
+
+class EventEdgeConsensusState(BaseModel):
+    enabled: bool = False
+    shadowMode: bool = True
+    canaryStage: int = 0
+    decision: Literal["YES", "NO", "ABSTAIN"] = "ABSTAIN"
+    sizeFraction: float = 0.0
+    alertBridgeStatus: Literal["healthy", "stale", "offline"] = "offline"
+    alertAcknowledged: bool = False
+    lanes: List[EventEdgeConsensusLane] = Field(default_factory=list)
+    blockers: List[str] = Field(default_factory=list)
+
+
 class EventEdgeDashboard(BaseModel):
     generatedAt: str
     sourceStatus: Literal["live", "stale", "offline", "partial"]
@@ -415,6 +448,8 @@ class EventEdgeDashboard(BaseModel):
     manualTrades: List[EventEdgeManualTrade] = Field(default_factory=list)
     executionRecords: List[EventEdgeExecutionRecord] = Field(default_factory=list)
     automation: EventEdgeAutomationState = Field(default_factory=EventEdgeAutomationState)
+    consensus: EventEdgeConsensusState = Field(default_factory=EventEdgeConsensusState)
+    whaleCandidates: List[EventEdgeWhaleCandidate] = Field(default_factory=list)
     marketFamilies: List[str] = Field(default_factory=list)
 
 

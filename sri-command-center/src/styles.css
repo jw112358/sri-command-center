@@ -274,6 +274,17 @@ html, body {
 .edge-control-actions small { grid-column: 1 / -1; color: var(--muted-2); font-size: 8px; line-height: 1.4; }
 .edge-control-actions .danger { border-color: var(--err-tint); color: var(--err); }
 .edge-control-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.edge-intelligence-grid { display: grid; grid-template-columns: minmax(340px, .8fr) minmax(0, 1.2fr); gap: 12px; }
+.edge-consensus, .edge-whales { min-height: 210px; }
+.edge-consensus-summary { padding: 12px; display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 8px; align-items: center; }
+.edge-consensus-summary strong { color: var(--gold); font: 20px var(--font-display); }
+.edge-consensus-summary span { padding: 7px; border: 1px solid var(--border-soft); color: var(--muted); font-size: 8px; text-align: center; }
+.edge-lanes { padding: 0 12px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.edge-lanes article { padding: 8px; border-left: 2px solid var(--gold-dim); background: rgba(6,15,30,.44); display: grid; gap: 4px; }
+.edge-lanes span, .edge-lanes small { color: var(--muted-2); font-size: 8px; }
+.edge-lanes strong { color: var(--white); font-size: 10px; }
+.edge-consensus-blockers { margin: 0 12px 12px; color: var(--err); font-size: 8.5px; overflow-wrap: anywhere; }
+.edge-whales .edge-table-wrap { max-height: 220px; }
 .edge-warning { padding: 9px 12px; border: 1px solid rgba(255,89,89,.36); color: var(--err); font-size: 10px; }
 .edge-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; }
 .edge-metrics > div { padding: 11px 12px; border: 1px solid var(--border-soft); background: rgba(255,215,0,.025); display: grid; gap: 5px; }
@@ -328,6 +339,7 @@ html, body {
   .edge-source { min-width: 0; }
   .edge-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .edge-primary-grid, .edge-secondary-grid { grid-template-columns: 1fr; min-height: auto; }
+  .edge-intelligence-grid { grid-template-columns: 1fr; }
   .edge-automation { grid-template-columns: 1fr 1fr; }
   .edge-control-actions { grid-column: 1 / -1; }
   .edge-signals-panel, .edge-current-panel, .edge-entry, .edge-manual-ledger { min-height: 320px; }

@@ -179,6 +179,42 @@ export function EventEdgeOS() {
         </div>
       </div>
 
+      <div className="edge-intelligence-grid">
+        <div className="panel edge-consensus" aria-label="Four lane consensus state">
+          <div className="panel-h"><span className="t">FOUR-LANE CONSENSUS</span><span className="corner">{data.consensus.shadowMode ? 'SHADOW' : `CANARY ${data.consensus.canaryStage}`}</span></div>
+          <div className="edge-consensus-summary">
+            <strong>{data.consensus.decision}</strong>
+            <span>{(data.consensus.sizeFraction * 100).toFixed(0)}% SIZE</span>
+            <span>ALERT BRIDGE {data.consensus.alertBridgeStatus.toUpperCase()}</span>
+            <span>ACK {data.consensus.alertAcknowledged ? 'CONFIRMED' : 'MISSING'}</span>
+          </div>
+          <div className="edge-lanes">
+            {data.consensus.lanes.length === 0 && <div className="edge-empty">No consensus lane evidence has been published yet.</div>}
+            {data.consensus.lanes.map(lane => <article key={lane.lane}>
+              <span>{lane.lane.replace(/_/g, ' ').toUpperCase()}</span>
+              <strong>{lane.side} · {(lane.confidence * 100).toFixed(0)}%</strong>
+              <small>{lane.rationale || 'No rationale published.'}</small>
+            </article>)}
+          </div>
+          {data.consensus.blockers.length > 0 && <p className="edge-consensus-blockers">BLOCKED: {data.consensus.blockers.join(' · ')}</p>}
+        </div>
+
+        <div className="panel edge-whales" aria-label="Whale attribution candidates">
+          <div className="panel-h"><span className="t">WHALE ATTRIBUTION</span><span className="corner">RIVO · BTC / SOL / XRP</span></div>
+          <div className="edge-table-wrap">
+            <table><thead><tr><th>TRADER</th><th>ASSET</th><th>SETTLED</th><th>WIN / ENTRY</th><th>RETURN</th><th>STATUS</th></tr></thead><tbody>
+              {data.whaleCandidates.length === 0 && <tr><td colSpan={6}>No attributed Rivo evidence has been published yet.</td></tr>}
+              {data.whaleCandidates.map(candidate => <tr key={`${candidate.traderRef}-${candidate.asset}`}>
+                <td>{candidate.traderRef}</td><td>{candidate.asset}</td><td>{candidate.settledTrades}</td>
+                <td>{candidate.winRate == null || candidate.averageEntryPrice == null ? 'suppressed' : `${(candidate.winRate * 100).toFixed(1)}% / ${candidate.averageEntryPrice.toFixed(3)}`}</td>
+                <td>{candidate.returnRate == null ? 'n/a' : `${(candidate.returnRate * 100).toFixed(1)}%`}</td>
+                <td><span className={`badge ${candidate.eligibleForScoring ? 'ACTIVE' : 'BLOCKED'}`}>{candidate.eligibleForScoring ? 'ELIGIBLE' : 'SCREENED'}</span></td>
+              </tr>)}
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+
       <div className="edge-metrics" aria-label="BTC paper performance summary">
         <div><span>SETTLED</span><strong>{m.settled}</strong></div>
         <div><span>OPEN PAPER</span><strong>{data.currentPaperTrades.length}</strong></div>

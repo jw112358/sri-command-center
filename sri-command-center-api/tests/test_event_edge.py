@@ -194,6 +194,32 @@ class EventEdgeApiTests(unittest.TestCase):
         self.assertEqual("live", data["automation"]["mode"])
         self.assertEqual("healthy", data["automation"]["heartbeatStatus"])
 
+    def test_consensus_and_whale_intelligence_are_read_only_and_price_aware(self):
+        payload = paper_payload()
+        payload["consensus"] = {
+            "enabled": True, "shadow_mode": True, "canary_stage": 0,
+            "decision": "YES", "size_fraction": 1, "alert_bridge_status": "offline",
+            "alert_acknowledged": False, "blockers": ["shadow_mode"],
+            "lanes": [{"lane": "whale_copy", "side": "YES", "confidence": .72,
+                       "rationale": "Synthetic", "observed_at": payload["generated_at"]}],
+        }
+        payload["whale_candidates"] = [{
+            "trader_ref": "rivo:synthetic", "venue": "kalshi", "asset": "BTC",
+            "settled_trades": 125, "win_rate": .66, "average_entry_price": .54,
+            "return_rate": .12, "profit": 900, "eligible_for_scoring": True,
+        }, {
+            "trader_ref": "rivo:no-price", "venue": "kalshi", "asset": "SOL",
+            "settled_trades": 150, "win_rate": .80, "average_entry_price": None,
+            "profit": 500, "eligible_for_scoring": False,
+        }]
+        with patch("app.services.event_edge.load_event_edge_payload", return_value=payload):
+            data = self.client.get("/api/event-edge/dashboard", headers=self.headers).json()
+        self.assertTrue(data["consensus"]["shadowMode"])
+        self.assertFalse(data["consensus"]["alertAcknowledged"])
+        self.assertEqual("whale_copy", data["consensus"]["lanes"][0]["lane"])
+        self.assertEqual(.54, data["whaleCandidates"][0]["averageEntryPrice"])
+        self.assertIsNone(data["whaleCandidates"][1]["winRate"])
+
     def test_paper_mode_cannot_enable_orders_even_with_live_flags(self):
         now = datetime.now(timezone.utc)
         payload = paper_payload()
